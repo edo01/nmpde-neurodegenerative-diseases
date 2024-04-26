@@ -126,76 +126,54 @@ NeurodegenerativeDisease::assemble_system()
 
       for (unsigned int q = 0; q < n_q; ++q)
         {
-          // Evaluate coefficients on this quadrature node.
-          //const double mu_0_loc = mu_0.value(fe_values.quadrature_point(q));
-          //const double mu_1_loc = mu_1.value(fe_values.quadrature_point(q));
-          //const double f_loc =
-          //  forcing_term.value(fe_values.quadrature_point(q));
 
-          //evaluate the Diffusion term 
-          const Tensor<2, dim> diffusion_coefficent =
+          //evaluate the Diffusion term on the current quadrature point
+          const Tensor<2, dim> diffusion_coefficent_loc =
             diffusion_tensor.value(fe_values.quadrature_point(q));
 
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
                 {
-                  // shape_value(i, q) = phi_i(x_q) =  v 
-                  // shape_value(j, q) = phi_j(x_q) =  delta
-
-                  // Mass matrix.
+                  // Mass matrix. 
+                  // phi_i * phi_j/deltat * dx
                   cell_matrix(i, j) += fe_values.shape_value(i, q) *
                                        fe_values.shape_value(j, q) / deltat *
                                        fe_values.JxW(q);
 
                   // Non-linear stiffness matrix, first term.
-                  cell_matrix(i, j) += 
-                    //qua ci va il prodotto D(u) * grad(delta) * grad(v)
-                    // copiare quello che avevamo fatto con il trasporto per la sua valutazione
-                    my_Matrix_Vector_Mul(diffusion_coefficent,
+                  // D*grad(phi_i) * grad(phi_j) * dx
+                  cell_matrix(i, j) -= 
+                    my_Matrix_Vector_Mul(diffusion_coefficent_loc,
                                    fe_values.shape_grad(j, q)) *
                     fe_values.shape_grad(i, q) * fe_values.JxW(q);
 
-                  //  (mu_0_loc + 2.0 * mu_1_loc * fe_values.shape_value(j, q) *
-                  //                solution_loc[q]) *
-                  //  scalar_product(solution_gradient_loc[q],
-                  //                 fe_values.shape_grad(i, q)) *
-                  //  fe_values.JxW(q);
-
                   // Non-linear stiffness matrix, second term.
-                  cell_matrix(i, j) +=
+                  // alpha * (1-2*c) * phi_i * phi_j * dx
+                  cell_matrix(i, j) -=
                     alpha * (1-2.0*solution_loc[q]) * fe_values.shape_value(j, q) *
                     fe_values.shape_value(i, q) * fe_values.JxW(q);
                     
-                    /*(mu_0_loc + mu_1_loc * solution_loc[q] * solution_loc[q]) *
-                    scalar_product(fe_values.shape_grad(j, q),
-                                   fe_values.shape_grad(i, q)) *
-                    fe_values.JxW(q);*/
                 }
 
               // Assemble the residual vector (with changed sign).
 
               // Time derivative term.
+              // phi_i * (c - c_old)/deltat * dx
               cell_residual(i) -= (solution_loc[q] - solution_old_loc[q]) /
                                   deltat * fe_values.shape_value(i, q) *
                                   fe_values.JxW(q);
 
               // Diffusion term.
-              cell_residual(i) -= my_Matrix_Vector_Mul(diffusion_coefficent,
+              // D*grad(c) * grad(phi_i) * dx
+              cell_residual(i) += my_Matrix_Vector_Mul(diffusion_coefficent_loc,
                   solution_gradient_loc[q]) * fe_values.shape_grad(i, q) * fe_values.JxW(q);
 
-              cell_residual(i) -=
+              // Reaction term. (Non-linear)
+              // alpha * c * (1-c) * phi_i * dx
+              cell_residual(i) +=
                 alpha * solution_loc[q] * (1-solution_loc[q]) * fe_values.shape_value(i, q) *
                 fe_values.JxW(q);
-              /*cell_residual(i) -=
-                (mu_0_loc + mu_1_loc * solution_loc[q] * solution_loc[q]) *
-                scalar_product(solution_gradient_loc[q],
-                               fe_values.shape_grad(i, q)) *
-                fe_values.JxW(q);
-
-              // Forcing term.
-              cell_residual(i) +=
-                f_loc * fe_values.shape_value(i, q) * fe_values.JxW(q);*/
             }
         }
 
@@ -207,36 +185,15 @@ NeurodegenerativeDisease::assemble_system()
 
   jacobian_matrix.compress(VectorOperation::add);
   residual_vector.compress(VectorOperation::add);
-
-  // We apply Dirichlet boundary conditions.
-  // The linear system solution is delta, which is the difference between
-  // u_{n+1}^{(k+1)} and u_{n+1}^{(k)}. Both must satisfy the same Dirichlet
-  // boundary conditions: therefore, on the boundary, delta = u_{n+1}^{(k+1)} -
-  // u_{n+1}^{(k+1)} = 0. We impose homogeneous Dirichlet BCs.
-  /*{
-    std::map<types::global_dof_index, double> boundary_values;
-
-    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
-    Functions::ZeroFunction<dim>                        zero_function;
-
-    for (unsigned int i = 0; i < 6; ++i)
-      boundary_functions[i] = &zero_function;
-
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                             boundary_functions,
-                                             boundary_values);
-
-    MatrixTools::apply_boundary_values(
-      boundary_values, jacobian_matrix, delta_owned, residual_vector, false);
-  }*/
 }
 
 void
 NeurodegenerativeDisease::solve_linear_system()
 {
-  SolverControl solver_control(1000, 1e-6 * residual_vector.l2_norm());
+  SolverControl solver_control(10000, 1e-12 * residual_vector.l2_norm());
 
-  SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
+  //SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
+  SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);;
   TrilinosWrappers::PreconditionSSOR      preconditioner;
   preconditioner.initialize(
     jacobian_matrix, TrilinosWrappers::PreconditionSSOR::AdditionalData(1.0));
@@ -253,24 +210,6 @@ NeurodegenerativeDisease::solve_newton()
 
   unsigned int n_iter        = 0;
   double       residual_norm = residual_tolerance + 1;
-
-  // We apply the boundary conditions to the initial guess (which is stored in
-  // solution_owned and solution).
-  /*{
-    IndexSet dirichlet_dofs = DoFTools::extract_boundary_dofs(dof_handler);
-    dirichlet_dofs          = dirichlet_dofs & dof_handler.locally_owned_dofs();
-
-    function_g.set_time(time);
-
-    TrilinosWrappers::MPI::Vector vector_dirichlet(solution_owned);
-    VectorTools::interpolate(dof_handler, function_g, vector_dirichlet);
-
-    for (const auto &idx : dirichlet_dofs)
-      solution_owned[idx] = vector_dirichlet[idx];
-    
-    solution_owned.compress(VectorOperation::insert);
-    solution = solution_owned;
-  }*/
 
   while (n_iter < n_max_iters && residual_norm > residual_tolerance)
     {

@@ -20,6 +20,7 @@
 #include <deal.II/grid/grid_in.h>
 
 #include <deal.II/lac/solver_cg.h>
+#include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/trilinos_precondition.h>
 #include <deal.II/lac/trilinos_sparse_matrix.h>
 
@@ -38,7 +39,7 @@ public:
 
 
   // Physical dimension (1D, 2D, 3D)
-  static constexpr unsigned int dim = 3;
+  static constexpr unsigned int dim = 2;
 
   /**
    * Fiber Field represent the field of fibers in the domain.
@@ -131,15 +132,15 @@ public:
     value(const Point<dim> & p,
           const unsigned int /*component*/ = 0) const override
     {
-      if (p[0] < 0.1 && p[1] < 0.1)
+      if (p.distance(Point<dim>(0.0, 0.0, 0.0)) < ray)
         return C_0;
       else
         return 0.0;
     }
   
   protected:
-    double C_0 = 1.0; // initial concentration
-  
+    double C_0 = 0.9; // initial concentration
+    double ray = 0.4; // radius of the initial condition
 
   };
 
@@ -203,8 +204,8 @@ protected:
 
   // SENSIBILITY ANALYSIS /////////////////////////////////////////////////////
 
-  //double alpha = 0.3; // year^-1 // concentration growth rate
-  double alpha = 0.8; // year^-1 // concentration growth rate
+  double alpha = 0.3; // year^-1 // concentration growth rate
+  //double alpha = 0.8; // year^-1 // concentration growth rate
 
   // Initial conditions.
   FunctionIC c_initial;
@@ -271,7 +272,8 @@ protected:
   TrilinosWrappers::MPI::Vector solution_old;
 
 private:
-  // TODO: calculate the matrix-vector product
+
+  // helper function to calculate the matrix-vector product
   Tensor<1,dim> my_Matrix_Vector_Mul(Tensor<2, dim> matrix, Tensor<1,dim> vector){
     Tensor<1,dim> result;
     for (unsigned int i = 0; i < dim; ++i)

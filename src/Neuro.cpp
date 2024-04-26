@@ -6,14 +6,15 @@ main(int argc, char *argv[])
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
-  const unsigned int degree = 1;
+  const unsigned int degree = 2;
 
-  const double T      = 0.01;
-  const double deltat = 0.001;
+
+  const double T      = 0.00010;
+  const double deltat = 0.000001;
 
   NeurodegenerativeDisease::FiberField fiber_field;
 
-  NeurodegenerativeDisease problem("../meshes/brain-h3.0.msh", degree, T, deltat, fiber_field);
+  NeurodegenerativeDisease problem("../meshes/mesh-square-40.msh", degree, T, deltat, fiber_field);
 
   problem.setup();
   problem.solve();
