@@ -15,6 +15,8 @@ NeurodegenerativeDisease::setup()
     std::ifstream grid_in_file(mesh_file_name);
     grid_in.read_msh(grid_in_file);
 
+    //GridGenerator::subdivided_hyper_cube(mesh_serial, 200, 0.0, 1.0, false);
+
     GridTools::partition_triangulation(mpi_size, mesh_serial);
     const auto construction_data = TriangulationDescription::Utilities::
       create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
@@ -143,9 +145,8 @@ NeurodegenerativeDisease::assemble_system()
 
                   // Non-linear stiffness matrix, first term.
                   // D*grad(phi_i) * grad(phi_j) * dx
-                  cell_matrix(i, j) -= 
-                    my_Matrix_Vector_Mul(diffusion_coefficent_loc,
-                                   fe_values.shape_grad(j, q)) *
+                  cell_matrix(i, j) += (diffusion_coefficent_loc 
+                                   * fe_values.shape_grad(j, q)) *
                     fe_values.shape_grad(i, q) * fe_values.JxW(q);
 
                   // Non-linear stiffness matrix, second term.
@@ -166,7 +167,7 @@ NeurodegenerativeDisease::assemble_system()
 
               // Diffusion term.
               // D*grad(c) * grad(phi_i) * dx
-              cell_residual(i) += my_Matrix_Vector_Mul(diffusion_coefficent_loc,
+              cell_residual(i) -= (diffusion_coefficent_loc *
                   solution_gradient_loc[q]) * fe_values.shape_grad(i, q) * fe_values.JxW(q);
 
               // Reaction term. (Non-linear)
@@ -190,11 +191,13 @@ NeurodegenerativeDisease::assemble_system()
 void
 NeurodegenerativeDisease::solve_linear_system()
 {
-  SolverControl solver_control(10000, 1e-12 * residual_vector.l2_norm());
+  SolverControl solver_control(20000, 1e-4 * residual_vector.l2_norm());
 
   //SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
   SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);;
-  TrilinosWrappers::PreconditionSSOR      preconditioner;
+
+    TrilinosWrappers::PreconditionSSOR      preconditioner;
+    //TrilinosWrappers::PreconditionAMG preconditioner;
   preconditioner.initialize(
     jacobian_matrix, TrilinosWrappers::PreconditionSSOR::AdditionalData(1.0));
 

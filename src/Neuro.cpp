@@ -8,15 +8,16 @@ main(int argc, char *argv[])
 
   const unsigned int degree = 2;
 
-
-  const double T      = 0.00010;
-  const double deltat = 0.000001;
+  const double T      = 10;
+//  const double deltat = 0.0000001;  // for square-40
+    const double deltat = 0.1;
 
   NeurodegenerativeDisease::FiberField fiber_field;
 
-  NeurodegenerativeDisease problem("../meshes/mesh-square-40.msh", degree, T, deltat, fiber_field);
+  NeurodegenerativeDisease problem("../meshes/brain-h3.03D.msh", degree, T, deltat, fiber_field);
 
   problem.setup();
+
   problem.solve();
   return 0;
 }

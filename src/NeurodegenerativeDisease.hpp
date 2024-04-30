@@ -18,6 +18,7 @@
 #include <deal.II/fe/mapping_fe.h>
 
 #include <deal.II/grid/grid_in.h>
+#include <deal.II/grid/grid_generator.h>
 
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_gmres.h>
@@ -27,6 +28,8 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/vector_tools.h>
+
+#include <deal.II/grid/grid_tools.h>
 
 #include <fstream>
 #include <iostream>
@@ -39,7 +42,7 @@ public:
 
 
   // Physical dimension (1D, 2D, 3D)
-  static constexpr unsigned int dim = 2;
+  static constexpr unsigned int dim = 3;
 
   /**
    * Fiber Field represent the field of fibers in the domain.
@@ -60,9 +63,8 @@ public:
       double distance_from_origin = p.distance(origin);
 
       // todo: changeme
-      values[0] = (p[0]-origin[0])/distance_from_origin;
-      values[1] = (p[1]-origin[1])/distance_from_origin;
-      values[2] = (p[2]-origin[2])/distance_from_origin;
+        for (unsigned int i = 0; i < dim; ++i)
+            values[i] = p[i] / (distance_from_origin + 1e-10);
     }
     
     virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
@@ -70,11 +72,13 @@ public:
       // Fiber field 
       double distance_from_origin = p.distance(origin);
 
-      return (p[component]-origin[component])/distance_from_origin;
+      return p[component] / (distance_from_origin + 1e-10);
     }
 
-    protected:
-      const Point<dim> origin = Point<dim>(0.0, 0.0, 0.0);
+    protected:  
+        //const Point<dim> origin = Point<dim>();
+        const Point<dim> origin = Point<dim>(48, 73, 60);
+        //const Point<dim> origin = Point<dim>();
   };
 
   /**
@@ -89,7 +93,7 @@ public:
   {
     public:
     DiffusionTensor(const FiberField &fiber_field)
-      : _fiber_field(fiber_field), _identity(std::move(unit_symmetric_tensor<dim>()))
+      : _fiber_field(fiber_field), _identity(unit_symmetric_tensor<dim>())
     {}
 
     virtual Tensor<2, dim, double> value(const Point<dim> &p) const override
@@ -117,8 +121,11 @@ public:
       const FiberField &_fiber_field;
       const SymmetricTensor<2,dim> _identity;
       
-      const double d_ext = 1.5; // cm^2/year
-      const double d_axn = 3.0; // cm^2/year 
+    //   const double d_ext = 1.5; // cm^2/year
+    //   const double d_axn = 3.0; // cm^2/year 
+
+    const double d_ext = 2;
+    const double d_axn = 5;
   };
   
 
@@ -132,15 +139,21 @@ public:
     value(const Point<dim> & p,
           const unsigned int /*component*/ = 0) const override
     {
-      if (p.distance(Point<dim>(0.0, 0.0, 0.0)) < ray)
+      if (p.distance(Point<dim>(40, 73, 60)) < ray)
         return C_0;
       else
         return 0.0;
+
+    //     auto distance = p.distance(Point<dim>(20, 20));
+    //       if (distance < ray)
+    //     return C_0 ;
+    //   else
+    //     return 0.0;
     }
   
   protected:
-    double C_0 = 0.9; // initial concentration
-    double ray = 0.4; // radius of the initial condition
+    double C_0 = 0.4; // initial concentration
+    double ray = 30; // radius of the initial condition
 
   };
 
@@ -204,8 +217,7 @@ protected:
 
   // SENSIBILITY ANALYSIS /////////////////////////////////////////////////////
 
-  double alpha = 0.3; // year^-1 // concentration growth rate
-  //double alpha = 0.8; // year^-1 // concentration growth rate
+  double alpha = 3; // year^-1 // concentration growth rate
 
   // Initial conditions.
   FunctionIC c_initial;
@@ -270,20 +282,6 @@ protected:
 
   // System solution at previous time step.
   TrilinosWrappers::MPI::Vector solution_old;
-
-private:
-
-  // helper function to calculate the matrix-vector product
-  Tensor<1,dim> my_Matrix_Vector_Mul(Tensor<2, dim> matrix, Tensor<1,dim> vector){
-    Tensor<1,dim> result;
-    for (unsigned int i = 0; i < dim; ++i)
-    {
-      result[i] = 0.0;
-      for (unsigned int j = 0; j < dim; ++j)
-        result[i] += matrix[i][j] * vector[j];
-    }
-    return result;
-  }
 
 };
 
