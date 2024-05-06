@@ -1,36 +1,38 @@
 #include "NDSolver.hpp"
 
 using namespace dealii;
-constexpr unsigned int dim = 2;
 
-class RadialFiberField: public NDProblem::FiberField
+template<unsigned int DIM>
+class RadialFiberField: public NDProblem<DIM>::FiberField
 {
     public:
-        virtual void vector_value(const Point<dim> &p, Vector<double> &values) const override
+        virtual void vector_value(const Point<DIM> &p, Vector<double> &values) const override
         {
           double distance_from_origin = p.distance(_origin);
-          for (unsigned int i = 0; i < dim; ++i)
+          for (unsigned int i = 0; i < DIM; ++i)
             values[i] = p[i] / (distance_from_origin + 1e-10);
         }
     
-        virtual double value(const Point<dim> &p, const unsigned int component = 0) const override
+        virtual double value(const Point<DIM> &p, const unsigned int component = 0) const override
         {
             double distance_from_origin = p.distance(_origin);
             return p[component] / (distance_from_origin + 1e-10);
         }
 
-        RadialFiberField(Point<dim> origin = Point<dim>()
+        RadialFiberField(Point<DIM> origin = Point<DIM>()
         ): _origin(origin){}
         
     private:
-      Point<dim> _origin;
+      Point<DIM> _origin;
 
 };
 
-class ExponentialInitialCondition: public NDProblem::InitialConcentration
+
+template<unsigned int DIM>
+class ExponentialInitialCondition: public NDProblem<DIM>::InitialConcentration
 {
     public:
-        virtual double value(const Point<dim> &p, const unsigned int /*component*/ = 0) const override
+        virtual double value(const Point<DIM> &p, const unsigned int /*component*/ = 0) const override
         {
             double distance_from_origin = p.distance(_origin);
             if(distance_from_origin > _ray)
@@ -38,11 +40,11 @@ class ExponentialInitialCondition: public NDProblem::InitialConcentration
             return _C_0*std::exp(-distance_from_origin*distance_from_origin/(2*sigma*sigma));
         }
       
-      ExponentialInitialCondition(Point<dim> origin = Point<dim>(), double sigma = 0.1, double C_0=0.4, double ray=4)
+      ExponentialInitialCondition(Point<DIM> origin = Point<DIM>(), double sigma = 0.1, double C_0=0.4, double ray=4)
         : _origin(origin), sigma(sigma), _C_0(C_0), _ray(ray) {}
         
     private:
-      Point<dim> _origin;
+      Point<DIM> _origin;
       double sigma;
       double _C_0;
       double _ray;
@@ -55,20 +57,21 @@ main(int argc, char *argv[])
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
   const unsigned int degree = 2;
+  const unsigned int dim = 3;
 
-  const double T      = 10;
+  const double T      = 1;
   const double deltat = 0.1;
   const double alpha = 0.5;
   const double d_ext = 0.1;
   const double d_axn = 0.3;
 
-  RadialFiberField fiber_field;
-  ExponentialInitialCondition initial_condition;
+  RadialFiberField<dim> fiber_field;
+  ExponentialInitialCondition<dim> initial_condition;
 
-  NDProblem problem("../meshes/mesh-square-40.msh", deltat,
+  NDProblem<dim> problem("../meshes/mesh-cube-10.msh", deltat,
           T, alpha, d_ext, d_axn, initial_condition, fiber_field);
 
-  NDSolver solver(problem, degree);
+  NDSolver<dim> solver(problem, degree);
 
   solver.setup();
 
