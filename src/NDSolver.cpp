@@ -1,7 +1,7 @@
-#include "NeurodegenerativeDisease.hpp"
+#include "NDSolver.hpp"
 
 void
-NeurodegenerativeDisease::setup()
+NDSolver::setup()
 {
   // Create the mesh.
   {
@@ -12,10 +12,8 @@ NeurodegenerativeDisease::setup()
     GridIn<dim> grid_in;
     grid_in.attach_triangulation(mesh_serial);
 
-    std::ifstream grid_in_file(mesh_file_name);
+    std::ifstream grid_in_file(problem.get_mesh_file_name());
     grid_in.read_msh(grid_in_file);
-
-    //GridGenerator::subdivided_hyper_cube(mesh_serial, 200, 0.0, 1.0, false);
 
     GridTools::partition_triangulation(mpi_size, mesh_serial);
     const auto construction_data = TriangulationDescription::Utilities::
@@ -87,7 +85,7 @@ NeurodegenerativeDisease::setup()
 }
 
 void
-NeurodegenerativeDisease::assemble_system()
+NDSolver::assemble_system()
 {
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q           = quadrature->size();
@@ -111,6 +109,11 @@ NeurodegenerativeDisease::assemble_system()
 
   // Value of the solution at previous timestep (un) on current cell.
   std::vector<double> solution_old_loc(n_q);
+
+  // get the parameters of the problem once for all
+  const double alpha = problem.get_alpha();
+  const double deltat = problem.get_deltat();
+  const NDProblem::DiffusionTensor diffusion_tensor = problem.get_diffusion_tensor();
 
   for (const auto &cell : dof_handler.active_cell_iterators())
     {
@@ -189,7 +192,7 @@ NeurodegenerativeDisease::assemble_system()
 }
 
 void
-NeurodegenerativeDisease::solve_linear_system()
+NDSolver::solve_linear_system()
 {
   SolverControl solver_control(20000, 1e-4 * residual_vector.l2_norm());
 
@@ -206,7 +209,7 @@ NeurodegenerativeDisease::solve_linear_system()
 }
 
 void
-NeurodegenerativeDisease::solve_newton()
+NDSolver::solve_newton()
 {
   const unsigned int n_max_iters        = 1000;
   const double       residual_tolerance = 1e-6;
@@ -242,7 +245,7 @@ NeurodegenerativeDisease::solve_newton()
 }
 
 void
-NeurodegenerativeDisease::output(const unsigned int &time_step) const
+NDSolver::output(const unsigned int &time_step) const
 {
   DataOut<dim> data_out;
   data_out.add_data_vector(dof_handler, solution, "u");
@@ -259,7 +262,7 @@ NeurodegenerativeDisease::output(const unsigned int &time_step) const
 }
 
 void
-NeurodegenerativeDisease::solve()
+NDSolver::solve()
 {
   pcout << "===============================================" << std::endl;
 
@@ -269,7 +272,8 @@ NeurodegenerativeDisease::solve()
   {
     pcout << "Applying the initial condition" << std::endl;
 
-    VectorTools::interpolate(dof_handler, c_initial, solution_owned);
+    VectorTools::interpolate(dof_handler, problem.get_initial_concentration(),
+                             solution_owned);
     solution = solution_owned;
 
     // Output the initial solution.
@@ -278,6 +282,9 @@ NeurodegenerativeDisease::solve()
   }
 
   unsigned int time_step = 0;
+
+  const double T = problem.get_T();
+  const double deltat = problem.get_deltat();
 
   while (time < T - 0.5 * deltat)
     {
