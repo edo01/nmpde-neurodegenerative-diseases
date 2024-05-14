@@ -48,30 +48,32 @@ nota che origin non è un parametro del problema, ma è un parametro della
 funzione iniziale e del fiber field.
 */
 using namespace dealii;
+
+template<int DIM>
 class NDProblem
 {
 
    public:
-        static constexpr unsigned int dim = 2;
+        //static constexpr unsigned int DIM = 2;
 
         /**
          * Fiber Field represent the field of fibers in the domain.
          * For each point in the domain, the fiber field is a versor.
          * 
          */
-        class FiberField : public Function<dim>
+        class FiberField : public Function<DIM>
         {
             public:
-                virtual void vector_value(const Point<dim> &/*p*/, Vector<double> &values) const override
+                virtual void vector_value(const Point<DIM> &/*p*/, Vector<double> &values) const override
                 {
-                    for (unsigned int i = 0; i < dim; ++i)
+                    for (unsigned int i = 0; i < DIM; ++i)
                     {
                         values[i] = 0;
                         if (i == 0) values[i] = 1;
                     }
                 }
             
-                virtual double value(const Point<dim> &/*p*/, const unsigned int component = 0) const override
+                virtual double value(const Point<DIM> &/*p*/, const unsigned int component = 0) const override
                 {
                     return component == 0 ? 1 : 0;
                 }
@@ -86,31 +88,31 @@ class NDProblem
          * where d_ext is the extracellular diffusion coefficient, d_axn is the axial
          * diffusion coefficient, I is the identity tensor and n is the fiber field.
          */
-        class DiffusionTensor : public TensorFunction<2,dim>
+        class DiffusionTensor : public TensorFunction<2,DIM>
         {
             public:
             DiffusionTensor(const FiberField &fiber_field, const double d_ext, const double d_axn)
             : _fiber_field(fiber_field), 
-            _identity(unit_symmetric_tensor<dim>()),
+            _identity(unit_symmetric_tensor<DIM>()),
             _d_ext(d_ext),
             _d_axn(d_axn)
             {}
 
-            virtual Tensor<2, dim, double> value(const Point<dim> &p) const override
+            virtual Tensor<2, DIM, double> value(const Point<DIM> &p) const override
             {
-            Tensor<2, dim> diffusion_tensor;
+            Tensor<2, DIM> diffusion_tensor;
 
             // calculate the fiber field at the point p
-            Vector<double> fiberV(dim);
+            Vector<double> fiberV(DIM);
             _fiber_field.vector_value(p, fiberV);
             
             // calculate the tensor product n⊗n
-            Tensor<1,dim> fiberT_1D;
+            Tensor<1,DIM> fiberT_1D;
             // copy fiberV into a 1D tensor
-            for (unsigned int i = 0; i < dim; ++i)
+            for (unsigned int i = 0; i < DIM; ++i)
                 fiberT_1D[i] = fiberV[i];
             
-            Tensor<2,dim> fiber_tensor = outer_product(fiberT_1D, fiberT_1D);
+            Tensor<2,DIM> fiber_tensor = outer_product(fiberT_1D, fiberT_1D);
 
             diffusion_tensor = _d_ext*_identity + _d_axn*fiber_tensor;
 
@@ -119,7 +121,7 @@ class NDProblem
 
             private:
             const FiberField &_fiber_field;
-            const SymmetricTensor<2,dim> _identity;
+            const SymmetricTensor<2,DIM> _identity;
             
             const double _d_ext; // cm^2/year
             const double _d_axn; // cm^2/year 
@@ -129,13 +131,13 @@ class NDProblem
         /**
          * Defines the initial condition for the concentration field.
          */
-        class InitialConcentration : public Function<dim>
+        class InitialConcentration : public Function<DIM>
         {
             public:
-                virtual double value(const Point<dim> & p,
+                virtual double value(const Point<DIM> & p,
                     const unsigned int /*component*/ = 0) const override
                 {
-                    if (p.distance(Point<dim>()) < _ray)
+                    if (p.distance(Point<DIM>()) < _ray)
                         return _C_0;
                     else
                         return 0.0;
@@ -165,14 +167,15 @@ class NDProblem
         /**
          * Constructor
          */
-        NDProblem(const std::string &mesh_file_name_,
-                                const double deltat_,
-                                const double T_,
-                                const double alpha_,
-                                const double d_ext,
-                                const double d_axn,
-                                const InitialConcentration &c_initial_,
-                                const FiberField &fiber_field_): 
+        NDProblem(
+            const std::string &mesh_file_name_,
+            const double deltat_,
+            const double T_,
+            const double alpha_,
+            const double d_ext,
+            const double d_axn,
+            const InitialConcentration &c_initial_,
+            const FiberField &fiber_field_): 
         _mesh_file_name(mesh_file_name_),
         _deltat(deltat_),
         _T(T_), 
@@ -185,8 +188,6 @@ class NDProblem
 
 
     private:
-
-        // TODO gestire DIM!!
 
         // Mesh file name.
         const std::string _mesh_file_name;
