@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
         std::cerr << "  -d: output directory\n";
         exit(EXIT_SUCCESS);
       default:
-        std::cerr << "Usage: " << argv[0] << " [-d dim] [-T T] [-a alpha] [-t deltat] [-g degree] [-e d_ext] [-x d_axn] [-m mesh]\n";
+        std::cerr << "Usage: " << argv[0] << " [-D dim] [-T T] [-a alpha] [-t deltat] [-g degree] [-e d_ext] [-x d_axn] [-m mesh] [-o output_filename] [-d output_dir]\n";
         exit(EXIT_FAILURE);
     }
   }
@@ -83,6 +83,7 @@ int main(int argc, char *argv[]) {
         RadialFiberField<1> fiber_field;
         NDProblem<1> problem(mesh, deltat, T, alpha, d_ext, d_axn, initial_condition, fiber_field);
         NDSolver<1> solver(problem, degree, output_dir, output_filename);
+        problem.export_problem(std::string(output_dir) + output_filename + ".problem");
         solver.setup();
         solver.solve();
       }
@@ -93,6 +94,7 @@ int main(int argc, char *argv[]) {
         RadialFiberField<2> fiber_field;
         NDProblem<2> problem(mesh, deltat, T, alpha, d_ext, d_axn, initial_condition, fiber_field);
         NDSolver<2> solver(problem, degree, output_dir, output_filename);
+        problem.export_problem(std::string(output_dir) + output_filename + ".problem");
         solver.setup();
         solver.solve();
       }
@@ -103,6 +105,7 @@ int main(int argc, char *argv[]) {
         RadialFiberField<3> fiber_field;
         NDProblem<3> problem(mesh, deltat, T, alpha, d_ext, d_axn, initial_condition, fiber_field);
         NDSolver<3> solver(problem, degree, output_dir, output_filename);
+        problem.export_problem(std::string(output_dir) + output_filename + ".problem");
         solver.setup();
         solver.solve();
       }

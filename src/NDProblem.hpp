@@ -31,6 +31,8 @@
 
 #include <deal.II/grid/grid_tools.h>
 
+#include <typeinfo>
+#include <iostream>
 
 /*
 Problem definition:
@@ -150,7 +152,21 @@ class NDProblem
                 double _C_0; // initial concentration
                 double _ray; // radius of the initial condition
         };
-
+        
+        // export the parameters of the problem in a human readable format
+        void export_problem(std::string filename)
+        {
+            std::ofstream file(filename);
+            file << "Mesh file name: " << _mesh_file_name << std::endl;
+            file << "Time step: " << _deltat << std::endl;
+            file << "Final time: " << _T << std::endl;
+            file << "Growth factor: " << _alpha << std::endl;
+            file << "Extracellular diffusion coefficient: " << _d_ext << std::endl;
+            file << "Axonal diffusion coefficient: " << _d_axn << std::endl;
+            file << "Initial concentration: " << typeid(_c_initial).name() << std::endl;
+            file << "Diffusion tensor: " << typeid(_diffusion_tensor).name() << std::endl;
+            file.close();
+        }
 
         /**
          * Getters
