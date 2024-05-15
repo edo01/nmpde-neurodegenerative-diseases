@@ -1,80 +1,115 @@
+#include <getopt.h>
+#include <iostream>
+#include <cstring>
+#include <cstdlib>
 #include "NDSolver.hpp"
+#include "InitialConditions.hpp"
+#include "FiberFields.hpp"
 
 using namespace dealii;
 
-template<unsigned int DIM>
-class RadialFiberField: public NDProblem<DIM>::FiberField
-{
-    public:
-        virtual void vector_value(const Point<DIM> &p, Vector<double> &values) const override
-        {
-          double distance_from_origin = p.distance(_origin);
-          for (unsigned int i = 0; i < DIM; ++i)
-            values[i] = p[i] / (distance_from_origin + 1e-10);
-        }
-    
-        virtual double value(const Point<DIM> &p, const unsigned int component = 0) const override
-        {
-            double distance_from_origin = p.distance(_origin);
-            return p[component] / (distance_from_origin + 1e-10);
-        }
-
-        RadialFiberField(Point<DIM> origin = Point<DIM>()
-        ): _origin(origin){}
-        
-    private:
-      Point<DIM> _origin;
-
-};
-
-
-template<unsigned int DIM>
-class ExponentialInitialCondition: public NDProblem<DIM>::InitialConcentration
-{
-    public:
-        virtual double value(const Point<DIM> &p, const unsigned int /*component*/ = 0) const override
-        {
-            double distance_from_origin = p.distance(_origin);
-            if(distance_from_origin > _ray)
-              return 0.0;
-            return _C_0*std::exp(-distance_from_origin*distance_from_origin/(2*sigma*sigma));
-        }
-      
-      ExponentialInitialCondition(Point<DIM> origin = Point<DIM>(), double sigma = 0.1, double C_0=0.4, double ray=4)
-        : _origin(origin), sigma(sigma), _C_0(C_0), _ray(ray) {}
-        
-    private:
-      Point<DIM> _origin;
-      double sigma;
-      double _C_0;
-      double _ray;
-};
-
-// Main function.
-int
-main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
-  const unsigned int degree = 2;
-  const unsigned int dim = 3;
+  // Variables to hold parameter values
+  unsigned int dim = 2;
+  double T = 1.0;
+  double alpha = 0.1;
+  double deltat = 0.01;
+  unsigned int degree = 1;
+  double d_ext = 1.5;
+  double d_axn = 3.0;
+  const char *mesh = "../meshes/mesh-square-40.msh";
+  const char *output_filename = "output";
+  const char *output_dir = "./";
 
-  const double T      = 1;
-  const double deltat = 0.1;
-  const double alpha = 0.5;
-  const double d_ext = 0.1;
-  const double d_axn = 0.3;
+  // getopt options
+  int opt;
+  while ((opt = getopt(argc, argv, "d:T:a:t:e:x:m:g:h:D:o:")) != -1) {
+    switch (opt) {
+      case 'D':
+        dim = std::atoi(optarg);
+        break;
+      case 'T':
+        T = std::atof(optarg);
+        break;
+      case 'a':
+        alpha = std::atof(optarg);
+        break;
+      case 't':
+        deltat = std::atof(optarg);
+        break;
+      case 'g':
+        degree = std::atoi(optarg);
+        break;
+      case 'e':
+        d_ext = std::atof(optarg);
+        break;
+      case 'x':
+        d_axn = std::atof(optarg);
+        break;
+      case 'm':
+        mesh = optarg;
+        break;
+      case 'o':
+        output_filename = optarg;
+        break;
+      case 'd':
+        output_dir = optarg;
+        break;
+      case 'h':
+        std::cerr << "Usage: " << argv[0] << " [-D dim] [-T T] [-a alpha] [-t deltat] [-g degree] [-e d_ext] [-x d_axn] [-m mesh] [-o output_filename] [-d output_dir]\n";
+        std::cerr << "  -m: mesh file\n";
+        std::cerr << "  -D: dimension of the problem\n";
+        std::cerr << "  -a: growth factor\n";
+        std::cerr << "  -e: extracellular diffusion coefficient\n";
+        std::cerr << "  -x: axonal diffusion coefficient\n";
+        std::cerr << "  -g: degree of the finite element\n";
+        std::cerr << "  -t: time step\n";
+        std::cerr << "  -T: final time\n";
+        std::cerr << "  -o: output filename\n";
+        std::cerr << "  -d: output directory\n";
+        exit(EXIT_SUCCESS);
+      default:
+        std::cerr << "Usage: " << argv[0] << " [-d dim] [-T T] [-a alpha] [-t deltat] [-g degree] [-e d_ext] [-x d_axn] [-m mesh]\n";
+        exit(EXIT_FAILURE);
+    }
+  }
 
-  RadialFiberField<dim> fiber_field;
-  ExponentialInitialCondition<dim> initial_condition;
-
-  NDProblem<dim> problem("../meshes/mesh-cube-10.msh", deltat,
-          T, alpha, d_ext, d_axn, initial_condition, fiber_field);
-
-  NDSolver<dim> solver(problem, degree);
-
-  solver.setup();
-
-  solver.solve();
+  switch(dim){
+    case 1:
+      {
+        ExponentialInitialCondition<1> initial_condition;
+        RadialFiberField<1> fiber_field;
+        NDProblem<1> problem(mesh, deltat, T, alpha, d_ext, d_axn, initial_condition, fiber_field);
+        NDSolver<1> solver(problem, degree, output_dir, output_filename);
+        solver.setup();
+        solver.solve();
+      }
+      break;
+    case 2:
+      {
+        ExponentialInitialCondition<2> initial_condition;
+        RadialFiberField<2> fiber_field;
+        NDProblem<2> problem(mesh, deltat, T, alpha, d_ext, d_axn, initial_condition, fiber_field);
+        NDSolver<2> solver(problem, degree, output_dir, output_filename);
+        solver.setup();
+        solver.solve();
+      }
+      break;
+    case 3:
+      {
+        ExponentialInitialCondition<3> initial_condition;
+        RadialFiberField<3> fiber_field;
+        NDProblem<3> problem(mesh, deltat, T, alpha, d_ext, d_axn, initial_condition, fiber_field);
+        NDSolver<3> solver(problem, degree, output_dir, output_filename);
+        solver.setup();
+        solver.solve();
+      }
+      break;
+    default:
+      std::cerr << "Invalid dimension\n";
+      exit(EXIT_FAILURE);
+  }
   return 0;
 }

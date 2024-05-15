@@ -40,6 +40,23 @@ riprodurre i risultati del paper. Questi saranno configurabili attraverso dei pa
 - Ragionare su come impostare lo studio della scalabilità.
 - Ragionare sulla linearizzazione del problema e altri metodi di risoluzione. (Taylor (?))
 
+## Usage
+```bash
+./neuro_disease [-D dim] [-T T] [-a alpha] [-t deltat] [-g degree] [-e d_ext] [-x d_axn] [-m mesh] [-o output_filename] [-d output_dir]
+```
+Where:
+- m: mesh file
+- D: dimension of the problem
+- a: growth factor
+- e: extracellular diffusion coefficient
+- x: axonal diffusion coefficient
+- g: degree of the finite element
+- t: time step
+- T: final time
+- o: output filename
+- d: output directory
+
+
 ## Risorse
 - Paper MOX sensitivity analysis: [exploring tau protein and amyloid-beta propagation: a sensitivity analysis of mathematical models based on biological data](https://mox.polimi.it/new-mox-report-on-exploring-tau-protein-and-amyloid-beta-propagation-a-sensitivity-analysis-of-mathematical-models-based-on-biological-data/)
 - Initial condition: [ J. Weickenmeier, E. Kuhl, and A. Goriely, “Multiphysics of prionlike diseases: Progression and atrophy”,

@@ -47,13 +47,17 @@ public:
   // Constructor. We provide the final time, time step Delta t and theta method
   // parameter as constructor arguments.
   NDSolver(NDProblem<DIM> &problem_,
-                const unsigned int &r_)
+                const unsigned int &r_,
+                const std::string &output_directory_ = "./",
+                const std::string &output_filename_ = "output")
     :
       problem(problem_)
     , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , pcout(std::cout, mpi_rank == 0)
     , r(r_)
+    , output_directory(output_directory_)
+    , output_filename(output_filename_)
     , mesh(MPI_COMM_WORLD)
   {}
 
@@ -95,6 +99,12 @@ protected:
 
   // Polynomial degree.
   const unsigned int r;
+
+  // directory where the output files will be written
+  std::string output_directory;
+
+  // output filename
+  std::string output_filename;
 
   // Jacobian matrix.
   TrilinosWrappers::SparseMatrix jacobian_matrix;
@@ -400,7 +410,7 @@ NDSolver<DIM>::output(const unsigned int &time_step) const
   data_out.build_patches();
 
   data_out.write_vtu_with_pvtu_record(
-    "./", "output", time_step, MPI_COMM_WORLD, 3);
+    output_directory, output_filename, time_step, MPI_COMM_WORLD, 3);
 }
 
 
@@ -450,5 +460,6 @@ NDSolver<DIM>::solve()
       pcout << std::endl;
     }
 }
+
 
 #endif
