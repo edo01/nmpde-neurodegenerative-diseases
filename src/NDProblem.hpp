@@ -51,6 +51,8 @@ funzione iniziale e del fiber field.
 */
 using namespace dealii;
 
+static const Point<3> brain_origin = Point<3>(48.0, 73.0, 60.0);
+
 template<int DIM>
 class NDProblem
 {
@@ -201,7 +203,6 @@ class NDProblem
         _c_initial(c_initial_), 
         _diffusion_tensor(fiber_field_, d_ext, d_axn)
         {}
-
 
     private:
 
