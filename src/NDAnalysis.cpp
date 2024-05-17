@@ -14,7 +14,7 @@ int main(int argc, char *argv[]) {
   // Variables to hold parameter values
   unsigned int dim = 2;
   double T = 1.0;
-  double alpha = 0.1;
+  double alpha = 0.45;
   double deltat = 0.01;
   unsigned int degree = 1;
   double d_ext = 1.5;
