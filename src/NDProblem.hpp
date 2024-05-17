@@ -177,7 +177,7 @@ class NDProblem
         double get_alpha() const { return _alpha; }
         double get_d_ext() const { return _d_ext; }
         double get_d_axn() const { return _d_axn; }
-        const InitialConcentration get_initial_concentration() const { return _c_initial; }
+        const InitialConcentration& get_initial_concentration() const { return _c_initial; }
         const DiffusionTensor get_diffusion_tensor() const { return _diffusion_tensor; }
 
         /**
@@ -224,7 +224,7 @@ class NDProblem
         double _d_axn; // cm^2/year
 
         // Initial conditions.
-        InitialConcentration _c_initial;
+        const InitialConcentration& _c_initial;
 
         // Diffusion coefficient
         DiffusionTensor _diffusion_tensor;

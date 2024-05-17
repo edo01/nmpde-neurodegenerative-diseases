@@ -160,6 +160,8 @@ NDSolver<DIM>::setup()
     std::ifstream grid_in_file(problem.get_mesh_file_name());
     grid_in.read_msh(grid_in_file);
 
+    //GridGenerator::subdivided_hyper_cube(mesh_serial, 100 + 1, 0.0, 1.0, true);
+
     GridTools::partition_triangulation(mpi_size, mesh_serial);
     const auto construction_data = TriangulationDescription::Utilities::
       create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
@@ -342,7 +344,7 @@ template<unsigned int DIM>
 void
 NDSolver<DIM>::solve_linear_system()
 {
-  SolverControl solver_control(20000, 1e-4 * residual_vector.l2_norm());
+  SolverControl solver_control(20000, 1e-12 * residual_vector.l2_norm());
 
   //SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
   SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);;
@@ -362,7 +364,7 @@ void
 NDSolver<DIM>::solve_newton()
 {
   const unsigned int n_max_iters        = 1000;
-  const double       residual_tolerance = 1e-6;
+  const double       residual_tolerance = 1e-9;
 
   unsigned int n_iter        = 0;
   double       residual_norm = residual_tolerance + 1;
