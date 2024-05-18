@@ -12,6 +12,7 @@
 #include <deal.II/dofs/dof_tools.h>
 
 #include <deal.II/fe/fe_simplex_p.h>
+#include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/fe/fe_values_extractors.h>
@@ -177,7 +178,15 @@ NDSolver<DIM>::setup()
   {
     pcout << "Initializing the finite element space" << std::endl;
 
-    fe = std::make_unique<FE_SimplexP<DIM>>(r);
+    if(DIM == 1)
+      // Finite elements in one dimensions are obtained with the FE_Q class. 
+      fe = std::make_unique<FE_Q<DIM>>(r);
+    else
+      // Triangular finite elements in higher dimensions are obtained w/
+      // FE_SimplexP, while FE_Q would provide hexahedral elements. 
+      fe = std::make_unique<FE_SimplexP<DIM>>(r);
+
+
 
     pcout << "  Degree                     = " << fe->degree << std::endl;
     pcout << "  DoFs per cell              = " << fe->dofs_per_cell
