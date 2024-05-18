@@ -413,6 +413,15 @@ NDSolver<DIM>::output(const unsigned int &time_step) const
   DataOut<DIM> data_out;
   data_out.add_data_vector(dof_handler, solution, "u");
 
+  pcout << std::endl << "  Numerical range of solution u: \n" << std::endl;
+
+  pcout << "  Min: " << solution.min() << std::endl;
+  pcout << "  Max: " << solution.max() << std::endl;
+
+  //pcout << "..............................................." << std::endl;
+  pcout << std::endl << "<+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+>" << std::endl;
+
+   
   std::vector<unsigned int> partition_int(mesh.n_active_cells());
   GridTools::get_subdomain_association(mesh, partition_int);
   const Vector<double> partitioning(partition_int.begin(), partition_int.end());
@@ -443,7 +452,7 @@ NDSolver<DIM>::solve()
 
     // Output the initial solution.
     output(0);
-    pcout << "-----------------------------------------------" << std::endl;
+    //pcout << "-----------------------------------------------" << std::endl;
   }
 
   unsigned int time_step = 0;
