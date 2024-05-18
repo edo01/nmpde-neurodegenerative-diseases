@@ -14,7 +14,7 @@ int main(int argc, char *argv[]) {
   // Variables to hold parameter values
   unsigned int dim = 2;
   double T = 1.0;
-  double alpha = 0.1;
+  double alpha = 0.45;
   double deltat = 0.01;
   unsigned int degree = 1;
   double d_ext = 1.5;
@@ -101,8 +101,9 @@ int main(int argc, char *argv[]) {
       break;
     case 3:
       {
-        ExponentialInitialCondition<3> initial_condition;
-        RadialFiberField<3> fiber_field;
+        ExponentialInitialCondition<3> initial_condition(brain_origin, 1, 0.95, 10);
+        //QuadraticInitialCondition<3> initial_condition(brain_origin, 0.95, 10);
+        RadialFiberField<3> fiber_field(brain_origin);
         NDProblem<3> problem(mesh, deltat, T, alpha, d_ext, d_axn, initial_condition, fiber_field);
         NDSolver<3> solver(problem, degree, output_dir, output_filename);
         problem.export_problem(std::string(output_dir) + output_filename + ".problem");
