@@ -168,11 +168,33 @@ NDSolver<DIM>::setup()
       create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
     mesh.create_triangulation(construction_data);
 
-    pcout << "  Number of elements = " << mesh.n_global_active_cells()
-          << std::endl;
+    
+
+    // 
+    {
+
+      pcout << "-----------------------------------------------" << std::endl;
+
+      pcout << "  Mesh file informations:" << std::endl<<std::endl;
+      pcout << "  Bounding box sides lenght:" << std::endl;
+
+      auto box = GridTools::compute_bounding_box(mesh_serial);
+
+      static const char labels[3] = {'x', 'y', 'z'}; 
+      for(unsigned i=0; i<DIM; i++){
+        pcout << "  " << labels[i] << ": " << box.side_length(i) << std::endl;
+      }
+
+      Point<DIM> center = box.center(); 
+      pcout << std::endl << "  Center:  " << center << std::endl << std::endl;
+
+      pcout << "  Number of elements = " << mesh.n_global_active_cells()
+            << std::endl;
+    }
+
+    pcout << "-----------------------------------------------" << std::endl;
   }
 
-  pcout << "-----------------------------------------------" << std::endl;
 
   // Initialize the finite element space.
   {
@@ -415,8 +437,9 @@ NDSolver<DIM>::output(const unsigned int &time_step) const
 
   pcout << std::endl << "  Numerical range of solution u: \n" << std::endl;
 
-  pcout << "  Min: " << solution.min() << std::endl;
-  pcout << "  Max: " << solution.max() << std::endl;
+  pcout << "  Min: " << solution_owned.min() << std::endl;
+  pcout << "  Max: " << solution_owned.max() << std::endl;
+  //pcout << "  L2: " << solution_owned.l2_norm() << std::endl;
 
   //pcout << "..............................................." << std::endl;
   pcout << std::endl << "<+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+>" << std::endl;

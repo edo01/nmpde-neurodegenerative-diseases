@@ -118,8 +118,24 @@ class NDProblem
             
             Tensor<2,DIM> fiber_tensor = outer_product(fiberT_1D, fiberT_1D);
 
-            diffusion_tensor = _d_ext*_identity + _d_axn*fiber_tensor;
+            // TESTING
+            /*
+            double a = 28.0;
+            double b = 65.0;
+            double c = 37.5;
+            double x_0 = 48.0, y_0 = 73.0, z_0 = 60.0; 
+            //bool in_white_portion = (p[0]-x_0)*(p[0]-x_0)/a*a + (p[1]-y_0)*(p[1]-y_0)/b*b + (p[2]-z_0)*(p[2]-z_0)/c*c - 1.0 < 0;
+            bool first_half = p[0] < 0.5;
 
+            if(false)
+                diffusion_tensor = _d_ext*_identity + _d_axn*fiber_tensor;
+            else
+                diffusion_tensor = _d_ext*_identity;
+
+            // ---------
+*/
+
+            diffusion_tensor = _d_ext*_identity + _d_axn*fiber_tensor;
             return diffusion_tensor;
             }
 
