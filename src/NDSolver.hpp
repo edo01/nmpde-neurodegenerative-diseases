@@ -81,6 +81,8 @@ protected:
   // Output.
   void output(const unsigned int &time_step) const;
 
+  Tensor<2, DIM> evaluate_diffusion_coeff(const Point<DIM> &p) const;
+
   // Problem definition.
   NDProblem<DIM> problem;
         
@@ -112,6 +114,7 @@ protected:
 
   // Mesh.
   parallel::fullydistributed::Triangulation<DIM> mesh;
+  Triangulation<DIM> mesh_serial;
 
   // Finite element space.
   std::unique_ptr<FiniteElement<DIM>> fe;
@@ -143,6 +146,28 @@ protected:
   // System solution at previous time step.
   TrilinosWrappers::MPI::Vector solution_old;
 
+  Point<DIM> box_center;
+  std::array<double, 3> box_sides_length;
+
+  std::vector<Point<DIM>> triangulation_vertices;
+  std::vector<bool> triangulation_boundary_mask;
+};
+
+
+template<unsigned int DIM>
+Tensor<2, DIM> NDSolver<DIM>::evaluate_diffusion_coeff(const Point<DIM> &p) const{
+  auto white_diffusion_tensor = problem.get_white_diffusion_tensor();
+  auto gray_diffusion_tensor = problem.get_gray_diffusion_tensor();
+  auto white_coeff = problem.get_white_matter_portion();
+
+  unsigned closest_boundary_id = GridTools::find_closest_vertex(mesh_serial, p, triangulation_boundary_mask);
+  Point<DIM> closest_boundary_point = triangulation_vertices[closest_boundary_id];
+
+  if(p.distance(box_center) < white_coeff*closest_boundary_point.distance(box_center))
+    return white_diffusion_tensor.value(p);
+  else 
+    return gray_diffusion_tensor.value(p);
+     
 };
 
 template<unsigned int DIM>
@@ -153,7 +178,6 @@ NDSolver<DIM>::setup()
   {
     pcout << "Initializing the mesh" << std::endl;
 
-    Triangulation<DIM> mesh_serial;
 
     GridIn<DIM> grid_in;
     grid_in.attach_triangulation(mesh_serial);
@@ -161,16 +185,22 @@ NDSolver<DIM>::setup()
     std::ifstream grid_in_file(problem.get_mesh_file_name());
     grid_in.read_msh(grid_in_file);
 
-    //GridGenerator::subdivided_hyper_cube(mesh_serial, 100 + 1, 0.0, 1.0, true);
 
     GridTools::partition_triangulation(mpi_size, mesh_serial);
     const auto construction_data = TriangulationDescription::Utilities::
       create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
     mesh.create_triangulation(construction_data);
-
     
 
-    // 
+     
+    triangulation_vertices  = mesh_serial.get_vertices();
+    std::map<unsigned int, Point<DIM>> boundary_vertices = GridTools::get_all_vertices_at_boundary(mesh_serial);
+    triangulation_boundary_mask = std::vector<bool>(triangulation_vertices.size(), false);
+    for(const auto [key, value] : boundary_vertices){
+      triangulation_boundary_mask[key] = true;
+      std::cout << "Boundary: " << key << " : " << value << std::endl; 
+    }
+
     {
 
       pcout << "-----------------------------------------------" << std::endl;
@@ -180,16 +210,26 @@ NDSolver<DIM>::setup()
 
       auto box = GridTools::compute_bounding_box(mesh_serial);
 
+      box_center = box.center();
+      
       static const char labels[3] = {'x', 'y', 'z'}; 
       for(unsigned i=0; i<DIM; i++){
-        pcout << "  " << labels[i] << ": " << box.side_length(i) << std::endl;
+        box_sides_length[i] = box.side_length(i);
+        pcout << "  " << labels[i] << ": " << box_sides_length[i] << std::endl;
       }
 
-      Point<DIM> center = box.center(); 
-      pcout << std::endl << "  Center:  " << center << std::endl << std::endl;
+      pcout << std::endl << "  Center:  " << box_center << std::endl << std::endl;
+      pcout << std::endl << "  Box volume:  " << box.volume()<< std::endl << std::endl;
 
+
+      pcout << "  Number of vertices = " << triangulation_vertices.size() << std::endl;
       pcout << "  Number of elements = " << mesh.n_global_active_cells()
             << std::endl;
+      
+
+        
+      //problem.get_diffusion_tensor().set_box_props(_box_sides_length, _box_center);
+
     }
 
     pcout << "-----------------------------------------------" << std::endl;
@@ -292,7 +332,7 @@ NDSolver<DIM>::assemble_system()
   // get the parameters of the problem once for all
   const double alpha = problem.get_alpha();
   const double deltat = problem.get_deltat();
-  const auto diffusion_tensor = problem.get_diffusion_tensor();
+  //const auto diffusion_tensor = problem.get_diffusion_tensor();
 
   for (const auto &cell : dof_handler.active_cell_iterators())
     {
@@ -312,8 +352,10 @@ NDSolver<DIM>::assemble_system()
         {
 
           //evaluate the Diffusion term on the current quadrature point
-          const Tensor<2, DIM> diffusion_coefficent_loc =
-            diffusion_tensor.value(fe_values.quadrature_point(q));
+          //const Tensor<2, DIM> diffusion_coefficent_loc =
+          //  diffusion_tensor.value(fe_values.quadrature_point(q));
+
+          const Tensor<2, DIM> diffusion_coefficent_loc = evaluate_diffusion_coeff(fe_values.quadrature_point(q));
 
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
