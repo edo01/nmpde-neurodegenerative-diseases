@@ -1,6 +1,8 @@
 #ifndef ND_SOLVER_HPP
 #define ND_SOLVER_HPP 
 
+#define ANYSOTROPIC true 
+
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/quadrature_lib.h>
 
@@ -34,6 +36,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <vector>
 
 #include "NDProblem.hpp"
 
@@ -81,7 +84,9 @@ protected:
   // Output.
   void output(const unsigned int &time_step) const;
 
-  Tensor<2, DIM> evaluate_diffusion_coeff(const Point<DIM> &p) const;
+  Tensor<2, DIM> evaluate_diffusion_coeff(const unsigned int &quadrature_point_index, const Point<DIM> &p) const;
+
+  void compute_quadrature_points_domain();
 
   // Problem definition.
   NDProblem<DIM> problem;
@@ -146,27 +151,166 @@ protected:
   // System solution at previous time step.
   TrilinosWrappers::MPI::Vector solution_old;
 
+  // Coordinates of the mesh bounding box center
   Point<DIM> box_center;
-  std::array<double, 3> box_sides_length;
 
-  std::vector<Point<DIM>> triangulation_vertices;
-  std::vector<bool> triangulation_boundary_mask;
+  // Vector which maps every quadrature point to a part of the brain denoted by a value:
+  // 0 if it is in the white portion or 1 for the gray portion. @TODO: could be boolean but some problems with file storing and loading
+  std::vector<int> quadrature_points_domain;
 };
 
+void printLoadingBar(int current, int total, int barLength = 50) {
+    float progress = (float)current / total;
+    int pos = barLength * progress;
+
+    std::cout << "[";
+    for (int i = 0; i < barLength; ++i) {
+        if (i < pos) std::cout << "=";
+        else if (i == pos) std::cout << ">";
+        else std::cout << " ";
+    }
+    std::cout << "] " << int(progress * 100.0) << " %\r";
+    std::cout.flush();
+}
+
+template<typename T>
+void saveVectorToFile(std::vector<T>& vec, const std::string& filename) {
+    std::ofstream outfile(filename, std::ios::out | std::ios::binary);
+    outfile.write(reinterpret_cast<const char*>(vec.data()), vec.size() * sizeof(T));
+    outfile.close();
+}
+
+// Fix messages print in parallel
+template<typename T>
+bool loadVectorFromFile(std::vector<T>& vec, const std::string& filename) {
+    std::cout<< "Trying to read quadrature points domain file '" << filename << "'" <<  std::endl;
+    std::ifstream infile(filename, std::ios::in | std::ios::binary);
+    if (!infile) {
+        std::cout<< "Failed to open file\n";
+        return false;
+    }
+
+    infile.seekg(0, std::ios::end);
+    std::streamsize size = infile.tellg();
+    infile.seekg(0, std::ios::beg);
+
+    vec.resize(size / sizeof(T));
+    infile.read(reinterpret_cast<char*>(vec.data()), size);
+
+    // Check if the read operation was successful
+    if (infile.fail()) {
+        std::cout<< "Read operation failed\n";
+        return false;
+    }
+
+    infile.close();
+    return true;
+}
+
+/**
+ * Compute the position of every quadrature point with respect
+ * to the white and gray partion of the brain, and save the resulting
+ * boolean vector.
+ *  
+*/
+template<unsigned int DIM>
+void NDSolver<DIM>::compute_quadrature_points_domain(){
+
+  // @TODO: Assign custom name file based on mesh file name 
+  const std::string file_name = "quadrature_points_domain_vec";
+
+  // Tries to load existing file
+  if(loadVectorFromFile(quadrature_points_domain, file_name)){
+    pcout << "Found valid file.\n";
+    return;
+  }
+  pcout << "It could be take a while.\n";
+
+  // @TODO: Parallelize?
+  if(mpi_rank == 0){
+  // Retrieve all vertices on the boundary 
+  std::map<unsigned int, Point<DIM>> boundary_vertices = GridTools::get_all_vertices_at_boundary(mesh_serial);
+
+  // Retrieve all vertices from the triangulation 
+  std::vector<Point<DIM>> triangulation_vertices=mesh_serial.get_vertices();
+  
+  // Create a vector to mark every triangulation vertix if they are on boundary
+  std::vector<bool> triangulation_boundary_mask = std::vector<bool>(triangulation_vertices.size(), false);
+  for(const auto [key, value] : boundary_vertices){
+    triangulation_boundary_mask[key] = true;
+  }
+
+  // Only need to retrieve quadrature points from cells
+  FEValues<DIM> fe_values(*fe, *quadrature,update_quadrature_points);
+
+  double white_coeff = problem.get_white_matter_portion();
+
+  // For each cell, there will be a number of quadrature points specified by the quadrature
+  unsigned n_points = mesh.n_global_active_cells()*quadrature->size();
+
+  // Initialize vector to map every quadrature point to the brain portion
+  // N.B. Could be <bool> since there are only two domains, but writing to file
+  // is a little tricker with boolean vectors.
+  quadrature_points_domain = std::vector<int>(n_points, 0);
+
+  // Current global quadrature point id.
+  unsigned quadrature_point_id = 0;
+
+  // Iterate through the cells  
+  for (const auto &cell : dof_handler.active_cell_iterators()){
+
+    // NO PARALLEL YET
+    /*
+    if (!cell->is_locally_owned()){
+      continue;
+    }
+    */
+
+    // Set focus on current cell for the FEValues object 
+    fe_values.reinit(cell);
+
+    // For each quadrature point in cell
+    for (const Point<DIM> &cell_quadrature_point : fe_values.get_quadrature_points())
+    {
+      // VERY COMPUTING INTENSIVE 
+      // Find the closest vertex point on the boundary 
+      unsigned closest_boundary_id = GridTools::find_closest_vertex(mesh_serial, cell_quadrature_point, triangulation_boundary_mask);
+      Point<DIM> closest_boundary_point = triangulation_vertices[closest_boundary_id];
+      // -------------------------
+
+      // If the quadrature point is nearest to the center of the mesh box than its closest vertex on the white boundary,
+      // it is in the white portion. 
+      if(cell_quadrature_point.distance(box_center) < white_coeff*closest_boundary_point.distance(box_center))
+        quadrature_points_domain[quadrature_point_id]=0;
+      else
+        quadrature_points_domain[quadrature_point_id]=1;
+
+
+      printLoadingBar(quadrature_point_id, n_points);
+      quadrature_point_id ++;
+    }
+
+  }
+
+  // Save to file computed vector
+  saveVectorToFile(quadrature_points_domain, file_name);
+  }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+}
 
 template<unsigned int DIM>
-Tensor<2, DIM> NDSolver<DIM>::evaluate_diffusion_coeff(const Point<DIM> &p) const{
-  auto white_diffusion_tensor = problem.get_white_diffusion_tensor();
+Tensor<2, DIM> NDSolver<DIM>::evaluate_diffusion_coeff(const unsigned int &quadrature_point_index, const Point<DIM> &p) const{
   auto gray_diffusion_tensor = problem.get_gray_diffusion_tensor();
-  auto white_coeff = problem.get_white_matter_portion();
+  auto white_diffusion_tensor = problem.get_white_diffusion_tensor();
 
-  unsigned closest_boundary_id = GridTools::find_closest_vertex(mesh_serial, p, triangulation_boundary_mask);
-  Point<DIM> closest_boundary_point = triangulation_vertices[closest_boundary_id];
-
-  if(p.distance(box_center) < white_coeff*closest_boundary_point.distance(box_center))
-    return white_diffusion_tensor.value(p);
-  else 
+#if ANYSOTROPIC
+  return quadrature_points_domain[quadrature_point_index] == 0 ? 
+    white_diffusion_tensor.value(p) :
+    gray_diffusion_tensor.value(p);
+#else
     return gray_diffusion_tensor.value(p);
+#endif
      
 };
 
@@ -185,22 +329,12 @@ NDSolver<DIM>::setup()
     std::ifstream grid_in_file(problem.get_mesh_file_name());
     grid_in.read_msh(grid_in_file);
 
-
     GridTools::partition_triangulation(mpi_size, mesh_serial);
     const auto construction_data = TriangulationDescription::Utilities::
       create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
     mesh.create_triangulation(construction_data);
-    
-
-     
-    triangulation_vertices  = mesh_serial.get_vertices();
-    std::map<unsigned int, Point<DIM>> boundary_vertices = GridTools::get_all_vertices_at_boundary(mesh_serial);
-    triangulation_boundary_mask = std::vector<bool>(triangulation_vertices.size(), false);
-    for(const auto [key, value] : boundary_vertices){
-      triangulation_boundary_mask[key] = true;
-      std::cout << "Boundary: " << key << " : " << value << std::endl; 
-    }
-
+   
+    // MESH INFORMATIONS
     {
 
       pcout << "-----------------------------------------------" << std::endl;
@@ -214,29 +348,23 @@ NDSolver<DIM>::setup()
       
       static const char labels[3] = {'x', 'y', 'z'}; 
       for(unsigned i=0; i<DIM; i++){
-        box_sides_length[i] = box.side_length(i);
-        pcout << "  " << labels[i] << ": " << box_sides_length[i] << std::endl;
+        pcout << "  " << labels[i] << ": " << box.side_length(i) << std::endl;
       }
 
-      pcout << std::endl << "  Center:  " << box_center << std::endl << std::endl;
-      pcout << std::endl << "  Box volume:  " << box.volume()<< std::endl << std::endl;
+      pcout << "  Center:  " << box_center << std::endl ;
+      pcout << "  Box volume:  " << box.volume()<< std::endl;
 
 
-      pcout << "  Number of vertices = " << triangulation_vertices.size() << std::endl;
       pcout << "  Number of elements = " << mesh.n_global_active_cells()
             << std::endl;
       
-
-        
-      //problem.get_diffusion_tensor().set_box_props(_box_sides_length, _box_center);
-
     }
 
     pcout << "-----------------------------------------------" << std::endl;
   }
 
 
-  // Initialize the finite element space.
+  // FINITE ELEMENTS SPACE INITIALIZATION 
   {
     pcout << "Initializing the finite element space" << std::endl;
 
@@ -262,7 +390,7 @@ NDSolver<DIM>::setup()
 
   pcout << "-----------------------------------------------" << std::endl;
 
-  // Initialize the DoF handler.
+  // DOF HANDLER INITIALIZATION 
   {
     pcout << "Initializing the DoF handler" << std::endl;
 
@@ -277,7 +405,7 @@ NDSolver<DIM>::setup()
 
   pcout << "-----------------------------------------------" << std::endl;
 
-  // Initialize the linear system.
+  // LINEAR SYSTEM INITIALIZATION 
   {
     pcout << "Initializing the linear system" << std::endl;
 
@@ -300,12 +428,23 @@ NDSolver<DIM>::setup()
     solution.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
     solution_old = solution;
   }
+
+
+  // ANYSOTROPIC EVALUATION
+#if ANYSOTROPIC
+  {
+    pcout << std::endl << "Evaluating quadrature points domain." << std::endl;
+    compute_quadrature_points_domain();
+  }
+#endif
 }
 
 template<unsigned int DIM>
 void
 NDSolver<DIM>::assemble_system()
 {
+
+
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q           = quadrature->size();
 
@@ -334,6 +473,7 @@ NDSolver<DIM>::assemble_system()
   const double deltat = problem.get_deltat();
   //const auto diffusion_tensor = problem.get_diffusion_tensor();
 
+  int quadrature_point_id=0; 
   for (const auto &cell : dof_handler.active_cell_iterators())
     {
       if (!cell->is_locally_owned())
@@ -351,11 +491,9 @@ NDSolver<DIM>::assemble_system()
       for (unsigned int q = 0; q < n_q; ++q)
         {
 
-          //evaluate the Diffusion term on the current quadrature point
-          //const Tensor<2, DIM> diffusion_coefficent_loc =
-          //  diffusion_tensor.value(fe_values.quadrature_point(q));
-
-          const Tensor<2, DIM> diffusion_coefficent_loc = evaluate_diffusion_coeff(fe_values.quadrature_point(q));
+          // Evaluate the Diffusion term on the current quadrature point.
+          // Pass also the global quadrature point index to check in which part of the brain it is located. 
+          const Tensor<2, DIM> diffusion_coefficent_loc = evaluate_diffusion_coeff(quadrature_point_id, fe_values.quadrature_point(q));
 
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
@@ -399,13 +537,17 @@ NDSolver<DIM>::assemble_system()
               cell_residual(i) +=
                 alpha * solution_loc[q] * (1-solution_loc[q]) * fe_values.shape_value(i, q) *
                 fe_values.JxW(q);
+
             }
+
+            quadrature_point_id ++;
         }
 
       cell->get_dof_indices(dof_indices);
 
       jacobian_matrix.add(dof_indices, cell_matrix);
       residual_vector.add(dof_indices, cell_residual);
+
     }
 
   jacobian_matrix.compress(VectorOperation::add);
