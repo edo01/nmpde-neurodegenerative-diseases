@@ -226,6 +226,19 @@ void NDSolver<DIM>::compute_quadrature_points_domain(){
   }
   pcout << "It could be take a while.\n";
 
+  // For each cell, there will be a number of quadrature points specified by the quadrature
+  unsigned n_points = mesh_serial.n_global_active_cells()*quadrature->size();
+
+  // Initialize vector to map every quadrature point to the brain portion
+  // N.B. Could be <bool> since there are only two domains, but writing to file
+  // is a little tricker with boolean vectors.
+  quadrature_points_domain = std::vector<int>(n_points, 0);
+
+
+  DoFHandler<DIM> dof_handler_serial;
+  dof_handler_serial.reinit(mesh_serial);
+  dof_handler_serial.distribute_dofs(*fe);
+
   // @TODO: Parallelize?
   if(mpi_rank == 0){
   // Retrieve all vertices on the boundary 
@@ -245,19 +258,12 @@ void NDSolver<DIM>::compute_quadrature_points_domain(){
 
   double white_coeff = problem.get_white_matter_portion();
 
-  // For each cell, there will be a number of quadrature points specified by the quadrature
-  unsigned n_points = mesh.n_global_active_cells()*quadrature->size();
-
-  // Initialize vector to map every quadrature point to the brain portion
-  // N.B. Could be <bool> since there are only two domains, but writing to file
-  // is a little tricker with boolean vectors.
-  quadrature_points_domain = std::vector<int>(n_points, 0);
-
-  // Current global quadrature point id.
+    // Current global quadrature point id.
   unsigned quadrature_point_id = 0;
 
+
   // Iterate through the cells  
-  for (const auto &cell : dof_handler.active_cell_iterators()){
+  for (const auto &cell : dof_handler_serial.active_cell_iterators()){
 
     // NO PARALLEL YET
     /*
@@ -294,9 +300,10 @@ void NDSolver<DIM>::compute_quadrature_points_domain(){
 
   // Save to file computed vector
   saveVectorToFile(quadrature_points_domain, file_name);
+
   }
 
-  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Bcast(quadrature_points_domain.data(), quadrature_points_domain.size(), MPI_INT, 0, MPI_COMM_WORLD);
 }
 
 template<unsigned int DIM>
