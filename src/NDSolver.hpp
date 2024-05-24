@@ -266,6 +266,9 @@ template<unsigned int DIM>
 void
 NDSolver<DIM>::assemble_system()
 {
+ 
+  const double theta = 0.0;
+
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q           = quadrature->size();
 
@@ -284,10 +287,10 @@ NDSolver<DIM>::assemble_system()
 
   // Value and gradient of the solution on current cell.
   std::vector<double>         solution_loc(n_q);
-  std::vector<Tensor<1, DIM>> solution_gradient_loc(n_q);
-
-  // Value of the solution at previous timestep (un) on current cell.
   std::vector<double> solution_old_loc(n_q);
+
+  std::vector<Tensor<1, DIM>> solution_gradient_loc(n_q);
+  std::vector<Tensor<1, DIM>> solution_old_gradient_loc(n_q);
 
   // get the parameters of the problem once for all
   const double alpha = problem.get_alpha();
@@ -305,8 +308,10 @@ NDSolver<DIM>::assemble_system()
       cell_residual = 0.0;
 
       fe_values.get_function_values(solution, solution_loc);
-      fe_values.get_function_gradients(solution, solution_gradient_loc);
       fe_values.get_function_values(solution_old, solution_old_loc);
+
+      fe_values.get_function_gradients(solution, solution_gradient_loc);
+      fe_values.get_function_gradients(solution_old, solution_old_gradient_loc);
 
       for (unsigned int q = 0; q < n_q; ++q)
         {
@@ -314,6 +319,8 @@ NDSolver<DIM>::assemble_system()
           //evaluate the Diffusion term on the current quadrature point
           const Tensor<2, DIM> diffusion_coefficent_loc =
             diffusion_tensor.value(fe_values.quadrature_point(q));
+
+          double theta_comb = (1 - theta) * solution_old_loc[q] + theta * solution_loc[q];
 
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
@@ -327,14 +334,14 @@ NDSolver<DIM>::assemble_system()
 
                   // Non-linear stiffness matrix, first term.
                   // D*grad(phi_i) * grad(phi_j) * dx
-                  cell_matrix(i, j) += (diffusion_coefficent_loc 
+                  cell_matrix(i, j) += theta * (diffusion_coefficent_loc 
                                    * fe_values.shape_grad(j, q)) *
                     fe_values.shape_grad(i, q) * fe_values.JxW(q);
 
                   // Non-linear stiffness matrix, second term.
                   // alpha * (1-2*c) * phi_i * phi_j * dx
                   cell_matrix(i, j) -=
-                    alpha * (1-2.0*solution_loc[q]) * fe_values.shape_value(j, q) *
+                    theta * alpha * (1-2.0 * theta_comb) * fe_values.shape_value(j, q) *
                     fe_values.shape_value(i, q) * fe_values.JxW(q);
                     
                 }
@@ -348,14 +355,19 @@ NDSolver<DIM>::assemble_system()
                                   fe_values.JxW(q);
 
               // Diffusion term.
-              // D*grad(c) * grad(phi_i) * dx
-              cell_residual(i) -= (diffusion_coefficent_loc *
+              //(1-theta) * D*grad(c_old) * grad(phi_i) * dx
+              cell_residual(i) -= (1-theta) * (diffusion_coefficent_loc *
+                  solution_old_gradient_loc[q]) * fe_values.shape_grad(i, q) * fe_values.JxW(q);
+
+                  // Diffusion term.
+              //(1-theta) * D*grad(c_old) * grad(phi_i) * dx
+              cell_residual(i) -= theta * (diffusion_coefficent_loc *
                   solution_gradient_loc[q]) * fe_values.shape_grad(i, q) * fe_values.JxW(q);
 
               // Reaction term. (Non-linear)
-              // alpha * c * (1-c) * phi_i * dx
+              // alpha * (theta_comb) * (1-theta_comb) * phi_i * dx
               cell_residual(i) +=
-                alpha * solution_loc[q] * (1-solution_loc[q]) * fe_values.shape_value(i, q) *
+                alpha * theta_comb * (1-theta_comb) * fe_values.shape_value(i, q) *
                 fe_values.JxW(q);
             }
         }
