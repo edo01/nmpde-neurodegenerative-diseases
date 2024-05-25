@@ -68,19 +68,8 @@ class NDProblem
         class FiberField : public Function<DIM>
         {
             public:
-                virtual void vector_value(const Point<DIM> &/*p*/, Vector<double> &values) const override
-                {
-                    for (unsigned int i = 0; i < DIM; ++i)
-                    {
-                        values[i] = 0;
-                        if (i == 0) values[i] = 1;
-                    }
-                }
-            
-                virtual double value(const Point<DIM> &/*p*/, const unsigned int component = 0) const override
-                {
-                    return component == 0 ? 1 : 0;
-                }
+                virtual void vector_value(const Point<DIM> &p, Vector<double> &values) const override = 0;
+                virtual double value(const Point<DIM> &p, const unsigned int component = 0) const override = 0;
 
         };
 
@@ -104,39 +93,22 @@ class NDProblem
 
             virtual Tensor<2, DIM, double> value(const Point<DIM> &p) const override
             {
-            Tensor<2, DIM> diffusion_tensor;
+                Tensor<2, DIM> diffusion_tensor;
 
-            // calculate the fiber field at the point p
-            Vector<double> fiberV(DIM);
-            _fiber_field.vector_value(p, fiberV);
-            
-            // calculate the tensor product n⊗n
-            Tensor<1,DIM> fiberT_1D;
-            // copy fiberV into a 1D tensor
-            for (unsigned int i = 0; i < DIM; ++i)
-                fiberT_1D[i] = fiberV[i];
-            
-            Tensor<2,DIM> fiber_tensor = outer_product(fiberT_1D, fiberT_1D);
+                // calculate the fiber field at the point p
+                Vector<double> fiberV(DIM);
+                _fiber_field.vector_value(p, fiberV);
+                
+                // calculate the tensor product n⊗n
+                Tensor<1,DIM> fiberT_1D;
+                // copy fiberV into a 1D tensor
+                for (unsigned int i = 0; i < DIM; ++i)
+                    fiberT_1D[i] = fiberV[i];
+                
+                Tensor<2,DIM> fiber_tensor = outer_product(fiberT_1D, fiberT_1D);
 
-            // TESTING
-            /*
-            double a = 28.0;
-            double b = 65.0;
-            double c = 37.5;
-            double x_0 = 48.0, y_0 = 73.0, z_0 = 60.0; 
-            //bool in_white_portion = (p[0]-x_0)*(p[0]-x_0)/a*a + (p[1]-y_0)*(p[1]-y_0)/b*b + (p[2]-z_0)*(p[2]-z_0)/c*c - 1.0 < 0;
-            bool first_half = p[0] < 0.5;
-
-            if(false)
                 diffusion_tensor = _d_ext*_identity + _d_axn*fiber_tensor;
-            else
-                diffusion_tensor = _d_ext*_identity;
-
-            // ---------
-*/
-
-            diffusion_tensor = _d_ext*_identity + _d_axn*fiber_tensor;
-            return diffusion_tensor;
+                return diffusion_tensor;
             }
 
             private:
@@ -154,21 +126,7 @@ class NDProblem
         class InitialConcentration : public Function<DIM>
         {
             public:
-                virtual double value(const Point<DIM> & p,
-                    const unsigned int /*component*/ = 0) const override
-                {
-                    if (p.distance(Point<DIM>()) < _ray)
-                        return _C_0;
-                    else
-                        return 0.0;
-                }
-
-                InitialConcentration(double C_0=0.9, double ray=1)
-                : _C_0(C_0), _ray(ray) {}
-
-            private:
-                double _C_0; // initial concentration
-                double _ray; // radius of the initial condition
+                virtual double value(const Point<DIM> & p, const unsigned int component = 0) const override = 0;
         };
         
         // export the parameters of the problem in a human readable format

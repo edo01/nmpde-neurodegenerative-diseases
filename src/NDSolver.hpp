@@ -82,10 +82,15 @@ protected:
   void output(const unsigned int &time_step) const;
 
   // Problem definition.
-  NDProblem<DIM> problem;
+  const NDProblem<DIM> &problem;
         
-  // Current time.
+  // Current time and time step.
   double time;
+
+  double deltat;
+
+  // Theta method parameter.
+//   const double theta;
 
   // MPI parallel. /////////////////////////////////////////////////////////////
 
@@ -267,7 +272,7 @@ void
 NDSolver<DIM>::assemble_system()
 {
  
-  const double theta = 0.0;
+  const double theta = 0.5;
 
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q           = quadrature->size();

@@ -5,6 +5,36 @@
 
 using namespace dealii;
 
+/**
+ * @brief Constant initial condition.
+ * 
+ * @note If ray = 0 (default value), the initial condition is constant on the whole domain.
+ * 
+ * @tparam DIM Dimension of the problem.
+ */
+
+template<unsigned int DIM>
+class ConstantInitialCondition: public NDProblem<DIM>::InitialConcentration
+{
+    public:
+        virtual double value(const Point<DIM> &p, const unsigned int /*component*/ = 0) const override
+        {
+            if(_ray == 0.0)
+              return _C_0;
+            if(p.distance(_origin) > _ray)
+                return 0.0;
+            return _C_0;
+        }
+      
+      ConstantInitialCondition(double C_0=0.4, Point<DIM> origin = Point<DIM>(), double ray=0)
+        : _C_0(C_0), _origin(origin), _ray(ray) {}
+        
+    private:
+      double _C_0;
+      double _ray;
+      Point <DIM> _origin;
+};
+
 template<unsigned int DIM>
 class ExponentialInitialCondition: public NDProblem<DIM>::InitialConcentration
 {
