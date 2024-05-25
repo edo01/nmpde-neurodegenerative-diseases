@@ -134,8 +134,6 @@ class NDProblem
         {
             std::ofstream file(filename);
             file << "Mesh file name: " << _mesh_file_name << std::endl;
-            file << "Time step: " << _deltat << std::endl;
-            file << "Final time: " << _T << std::endl;
             file << "Growth factor: " << _alpha << std::endl;
             file << "Extracellular diffusion coefficient: " << _d_ext << std::endl;
             file << "Axonal diffusion coefficient: " << _d_axn << std::endl;
@@ -148,8 +146,6 @@ class NDProblem
          * Getters
          */
         const std::string &get_mesh_file_name() const { return _mesh_file_name; }
-        double get_deltat() const { return _deltat; }
-        double get_T() const { return _T; }
         double get_alpha() const { return _alpha; }
         double get_d_ext() const { return _d_ext; }
         double get_d_axn() const { return _d_axn; }
@@ -161,16 +157,12 @@ class NDProblem
          */
         NDProblem(
             const std::string &mesh_file_name_,
-            const double deltat_,
-            const double T_,
             const double alpha_,
             const double d_ext,
             const double d_axn,
             const InitialConcentration &c_initial_,
             const FiberField &fiber_field_): 
         _mesh_file_name(mesh_file_name_),
-        _deltat(deltat_),
-        _T(T_), 
         _alpha(alpha_),
         _d_ext(d_ext),
         _d_axn(d_axn),
@@ -182,12 +174,6 @@ class NDProblem
 
         // Mesh file name.
         const std::string _mesh_file_name;
-
-        // Time step.
-        const double _deltat;
-
-        // Final time.
-        const double _T;
 
         // concentration growth rate
         double _alpha; // year^-1

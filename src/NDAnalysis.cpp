@@ -2,7 +2,9 @@
 #include <iostream>
 #include <cstring>
 #include <cstdlib>
-#include "NDSolver.hpp"
+#include "ThetaSolver.hpp"
+#include "BESolver.hpp"
+#include "FESolver.hpp"
 #include "InitialConditions.hpp"
 #include "FiberFields.hpp"
 
@@ -81,8 +83,8 @@ int main(int argc, char *argv[]) {
       {
         ExponentialInitialCondition<1> initial_condition;
         RadialFiberField<1> fiber_field;
-        NDProblem<1> problem(mesh, deltat, T, alpha, d_ext, d_axn, initial_condition, fiber_field);
-        NDSolver<1> solver(problem, degree, output_dir, output_filename);
+        NDProblem<1> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
+        FESolver<1> solver(problem, deltat, T, degree, output_dir, output_filename);
         problem.export_problem(std::string(output_dir) + output_filename + ".problem");
         solver.setup();
         solver.solve();
@@ -92,8 +94,8 @@ int main(int argc, char *argv[]) {
       {
         ExponentialInitialCondition<2> initial_condition;
         RadialFiberField<2> fiber_field;
-        NDProblem<2> problem(mesh, deltat, T, alpha, d_ext, d_axn, initial_condition, fiber_field);
-        NDSolver<2> solver(problem, degree, output_dir, output_filename);
+        NDProblem<2> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
+        FESolver<2> solver(problem, deltat, T, degree, output_dir, output_filename);
         problem.export_problem(std::string(output_dir) + output_filename + ".problem");
         solver.setup();
         solver.solve();
@@ -104,8 +106,8 @@ int main(int argc, char *argv[]) {
         ExponentialInitialCondition<3> initial_condition(brain_origin, 1, 0.95, 10);
         //QuadraticInitialCondition<3> initial_condition(brain_origin, 0.95, 10);
         RadialFiberField<3> fiber_field(brain_origin);
-        NDProblem<3> problem(mesh, deltat, T, alpha, d_ext, d_axn, initial_condition, fiber_field);
-        NDSolver<3> solver(problem, degree, output_dir, output_filename);
+        NDProblem<3> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
+        FESolver<3> solver(problem, deltat, T, degree, output_dir, output_filename);
         problem.export_problem(std::string(output_dir) + output_filename + ".problem");
         solver.setup();
         solver.solve();
