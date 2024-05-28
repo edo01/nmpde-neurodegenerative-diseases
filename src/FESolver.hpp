@@ -14,15 +14,171 @@ public:
                  const double deltat_,
                  const double T_,
                  const unsigned int &r_,
+                 const bool adaptive_ = false,
+                 const double err_tol_ = 1e-9,
+                 const double min_step_ = 1e-6,
                  const std::string &output_directory_ = "./",
                  const std::string &output_filename_ = "output")
-     : NDSolver<DIM>(problem_, deltat_, T_, r_, output_directory_, output_filename_)
+     : NDSolver<DIM>(problem_, deltat_, T_, r_, output_directory_, output_filename_),
+       adaptive(adaptive_),
+       err_tol(err_tol_),
+       min_step(min_step_)
    {}
+
+   virtual ~FESolver() = default;
+
+  // Solve the problem.
+  virtual void solve() override;
 
 protected:
   // Assemble the tangent problem.
   virtual void assemble_system() override;
+
+private:
+  // Flag to indicate if we are using adaptive time stepping.
+  const bool adaptive;
+
+  // Tolerance for the error.
+  const double err_tol;
+
+  // Minimum time step.
+  const double min_step;
+
 };
+
+/**
+ * Solve the problem using the Forward Euler method or the adaptive Forward Euler method.
+ * 
+ * Scheme for the adaptive Forward Euler method:
+ * 
+ * 1. Apply the initial condition.
+ * 2. Compute the solution at time t+dt.
+ * 3. Compute the solution at time t+0.5*dt.
+ * 4. Compute the error ||u_{dt/2} - u_{dt}||/||u_{dt/2}||.
+ * 5. If the error is less than 3*err_tol, accept the solution and move to the next time step.
+ * 6. If the error is greater than 3*err_tol, reduce the time step by half and repeat the process.
+*/
+template<unsigned int DIM>
+void FESolver<DIM>::solve()
+{
+  // If the adaptive flag is not set, we use the standard time stepping.
+  if(!this->adaptive){
+    NDSolver<DIM>::solve();
+    return;
+  }
+
+  this->pcout << "===============================================" << std::endl;
+  this->pcout << "\t\tADAPTIVE FORWARD EULER" << std::endl;
+
+  this->time = 0.0;
+
+  // Apply the initial condition.
+  {
+    this->pcout << "Applying the initial condition" << std::endl;
+
+    VectorTools::interpolate(this->dof_handler, this->problem.get_initial_concentration(),
+                             this->solution_owned);
+    this->solution = this->solution_owned;
+
+    // Output the initial solution.
+    this->output(0);
+    //pcout << "-----------------------------------------------" << std::endl;
+  }
+
+  unsigned int time_step = 0;
+
+  double dt      = this->deltat;
+  double dt_half = this->deltat / 2.0;
+
+  // Store the dt_half solution.
+  TrilinosWrappers::MPI::Vector solution_dt; // store the solution at time t+dt
+
+
+  /*
+  At each timestep we compute the solution at time t+dt and t+0.5*dt.
+
+  */
+  while (this->time < this->T - 0.5 * this->deltat)
+    {
+      this->time += dt_half;
+      ++time_step;
+
+      // Store the old solution, so that it is available for assembly.
+      this->solution_old = this->solution;
+
+      this->pcout << "n = " << std::setw(3) << time_step << ", t = " << std::setw(5)
+            << std::fixed << this->time << std::endl;
+
+      // Check if the time step is less than the minimum time step.
+      while(dt_half>2*this->min_step)
+      {
+
+        this->pcout << "Computing the solution at time t+dt" << std::endl;
+        // Compute the solution at time t+dt
+        this->solve_newton();
+        // Save the solution at time t+dt
+        solution_dt = this->solution;
+
+        this->pcout << "Computing the solution at time t+0.5*dt" << std::endl;
+        // Set the time step to dt/2
+        this->deltat = dt_half;
+        // Compute the solution at time t+0.5*dt
+        this->solve_newton();
+
+
+        /*
+        At this point we have:
+        - solution: u_{dt}
+        - solution_dt: u_{dt+dt}
+        */
+
+        // Compute the error
+        // u_{dt/2} - u_{dt}
+        TrilinosWrappers::MPI::Vector error;
+        error = this->solution;
+        error -= solution_dt;
+
+
+        // ||u_{dt/2} - u_{dt}||
+        double error_norm = error.l2_norm();
+        // ||u_{dt/2}||
+        double solution_norm = this->solution.l2_norm();
+
+        // ||u_{dt/2} - u_{dt}||/||u_{dt/2}|| < 3*err_tol
+        if((error_norm/solution_norm) < 3*this->err_tol)
+        {
+          this->pcout << "[INFO] Accepting the solution. err: "<< error_norm/solution_norm << std::endl;
+
+          // Accept the solution
+          // the solution with dt/2 is already stored in this->solution
+          // Reset the time step
+          this->deltat = dt;
+
+          // output the solution
+          this->output(time_step);
+
+          this->pcout << std::endl;
+          break;
+        }
+        else
+        {
+          // discard the solution
+          this->solution = this->solution_old;
+
+          // reduce the time step
+          double temp = dt_half;
+          dt_half /= 2;
+          dt = temp;
+
+          // reduce the time step
+          this->pcout << "[INFO] Reducing the time step. new deltat: " << dt_half 
+              << ", err: "<< error_norm/solution_norm << std::endl;
+
+          // this->deltat is already set to dt_half          
+        }
+      }
+    }
+}
 
 template<unsigned int DIM>
 void

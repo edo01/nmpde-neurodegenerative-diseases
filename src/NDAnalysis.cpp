@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
         ExponentialInitialCondition<1> initial_condition;
         RadialFiberField<1> fiber_field;
         NDProblem<1> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
-        FESolver<1> solver(problem, deltat, T, degree, output_dir, output_filename);
+        BESolver<1> solver(problem, deltat, T, degree, output_dir, output_filename);
         problem.export_problem(std::string(output_dir) + output_filename + ".problem");
         solver.setup();
         solver.solve();
@@ -95,7 +95,9 @@ int main(int argc, char *argv[]) {
         ExponentialInitialCondition<2> initial_condition;
         RadialFiberField<2> fiber_field;
         NDProblem<2> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
-        FESolver<2> solver(problem, deltat, T, degree, output_dir, output_filename);
+        const double min_step = 1e-9;
+        const double TOL = 1e-3;
+        FESolver<2> solver(problem, deltat, T, degree, true, TOL, min_step,  output_dir, output_filename);
         problem.export_problem(std::string(output_dir) + output_filename + ".problem");
         solver.setup();
         solver.solve();
@@ -107,7 +109,7 @@ int main(int argc, char *argv[]) {
         //QuadraticInitialCondition<3> initial_condition(brain_origin, 0.95, 10);
         RadialFiberField<3> fiber_field(brain_origin);
         NDProblem<3> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
-        FESolver<3> solver(problem, deltat, T, degree, output_dir, output_filename);
+        BESolver<3> solver(problem, deltat, T, degree, output_dir, output_filename);
         problem.export_problem(std::string(output_dir) + output_filename + ".problem");
         solver.setup();
         solver.solve();

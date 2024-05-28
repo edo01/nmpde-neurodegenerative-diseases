@@ -336,9 +336,8 @@ NDSolver<DIM>::output(const unsigned int &time_step) const
 
   pcout << std::endl << "  Numerical range of solution u: \n" << std::endl;
 
-  pcout << "  Min: " << solution_owned.min() << std::endl;
-  pcout << "  Max: " << solution_owned.max() << std::endl;
-  //pcout << "  L2: " << solution_owned.l2_norm() << std::endl;
+  pcout << "  Min: " << solution.min() << std::endl;
+  pcout << "  Max: " << solution.max() << std::endl;
 
   //pcout << "..............................................." << std::endl;
   pcout << std::endl << "<+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+>" << std::endl;
