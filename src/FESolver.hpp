@@ -16,12 +16,14 @@ public:
                  const unsigned int &r_,
                  const bool adaptive_ = false,
                  const double err_tol_ = 1e-9,
+                 const double err_perc = 0.1,
                  const double min_step_ = 1e-6,
                  const std::string &output_directory_ = "./",
                  const std::string &output_filename_ = "output")
      : NDSolver<DIM>(problem_, deltat_, T_, r_, output_directory_, output_filename_),
        adaptive(adaptive_),
        err_tol(err_tol_),
+       err_perc(err_perc),
        min_step(min_step_)
    {}
 
@@ -40,6 +42,9 @@ private:
 
   // Tolerance for the error.
   const double err_tol;
+
+  // Error percentage.
+  const double err_perc;
 
   // Minimum time step.
   const double min_step;
@@ -144,23 +149,25 @@ void FESolver<DIM>::solve()
         // ||u_{dt/2}||
         double solution_norm = this->solution.l2_norm();
 
-        // ||u_{dt/2} - u_{dt}||/||u_{dt/2}|| < 3*err_tol
-        if((error_norm/solution_norm) < 3*this->err_tol)
+        // calc error
+        double relative_error = error_norm/(3*solution_norm);
+        double max_error = err_perc * err_tol;
+
+        // ||u_{dt/2} - u_{dt}||/||u_{dt/2}|| < err_tol-max_error -> increase the time step
+        if( relative_error < err_tol-max_error)
         {
-          this->pcout << "[INFO] Accepting the solution. err: "<< error_norm/solution_norm << std::endl;
+          // keep the solution already calculated
+          
+          //increase the time step
+          double temp = dt_half;
+          dt_half *= 2;
+          dt = temp;
 
-          // Accept the solution
-          // the solution with dt/2 is already stored in this->solution
-          // Reset the time step
-          this->deltat = dt;
+          this->pcout << "[INFO] Increasing the time step. new deltat: " << dt_half 
+              << ", err: "<< relative_error << std::endl;
 
-          // output the solution
-          this->output(time_step);
-
-          this->pcout << std::endl;
-          break;
         }
-        else
+        else if (relative_error > err_tol+max_error)
         {
           // discard the solution
           this->solution = this->solution_old;
@@ -172,9 +179,22 @@ void FESolver<DIM>::solve()
 
           // reduce the time step
           this->pcout << "[INFO] Reducing the time step. new deltat: " << dt_half 
-              << ", err: "<< error_norm/solution_norm << std::endl;
+              << ", err: "<< relative_error << std::endl;
 
-          // this->deltat is already set to dt_half          
+          // this->deltat is already set to dt_half 
+        }else{
+          this->pcout << "[INFO] Accepting the solution. err: "<< relative_error << std::endl;
+
+          // Accept the solution
+          // the solution with dt/2 is already stored in this->solution
+          // Reset the time step
+          this->deltat = dt;
+
+          // output the solution
+          this->output(time_step);
+
+          this->pcout << std::endl;
+          break;
         }
       }
     }
