@@ -84,9 +84,9 @@ protected:
   // Output.
   void output(const unsigned int &time_step) const;
 
-  Tensor<2, DIM> evaluate_diffusion_coeff(const unsigned int &quadrature_point_index, const Point<DIM> &p) const;
+  Tensor<2, DIM> evaluate_diffusion_coeff(const types::global_cell_index &global_active_cell_index, const Point<DIM> &p) const;
 
-  void compute_quadrature_points_domain();
+  void compute_cells_domain();
 
   // Problem definition.
   NDProblem<DIM> problem;
@@ -154,9 +154,9 @@ protected:
   // Coordinates of the mesh bounding box center
   Point<DIM> box_center;
 
-  // Vector which maps every quadrature point to a part of the brain denoted by a value:
-  // 0 if it is in the white portion or 1 for the gray portion. @TODO: could be boolean but some problems with file storing and loading
-  std::vector<int> quadrature_points_domain;
+  // Vector which maps every triangulation cell to a part of the brain denoted by a value:
+  // 0 if it is in the white portion or 1 if it is in the gray portion. @TODO: could be boolean but some problems with file storing and loading
+  std::vector<int> cells_domain;
 };
 
 void printLoadingBar(int current, int total, int barLength = 50) {
@@ -208,117 +208,103 @@ bool loadVectorFromFile(std::vector<T>& vec, const std::string& filename) {
 }
 
 /**
- * Compute the position of every quadrature point with respect
+ * Compute the position of every cell with respect
  * to the white and gray partion of the brain, and save the resulting
  * boolean vector.
  *  
 */
 template<unsigned int DIM>
-void NDSolver<DIM>::compute_quadrature_points_domain(){
+void NDSolver<DIM>::compute_cells_domain(){
 
-  // @TODO: Assign custom name file based on mesh file name 
-  const std::string file_name = "quadrature_points_domain_vec";
+  // Number of cells in the triangulation
+  unsigned n_cells = mesh_serial.n_global_active_cells();
+  // Initialize flag vector to zeros. 
+  cells_domain = std::vector<int>(n_cells, 0);
 
-  // Tries to load existing file
-  if(loadVectorFromFile(quadrature_points_domain, file_name)){
-    pcout << "Found valid file.\n";
-    return;
-  }
-  pcout << "It could be take a while.\n";
-
-  // For each cell, there will be a number of quadrature points specified by the quadrature
-  unsigned n_points = mesh_serial.n_global_active_cells()*quadrature->size();
-
-  // Initialize vector to map every quadrature point to the brain portion
-  // N.B. Could be <bool> since there are only two domains, but writing to file
-  // is a little tricker with boolean vectors.
-  quadrature_points_domain = std::vector<int>(n_points, 0);
-
-
-  DoFHandler<DIM> dof_handler_serial;
-  dof_handler_serial.reinit(mesh_serial);
-  dof_handler_serial.distribute_dofs(*fe);
-
-  // @TODO: Parallelize?
   if(mpi_rank == 0){
-  // Retrieve all vertices on the boundary 
-  std::map<unsigned int, Point<DIM>> boundary_vertices = GridTools::get_all_vertices_at_boundary(mesh_serial);
 
-  // Retrieve all vertices from the triangulation 
-  std::vector<Point<DIM>> triangulation_vertices=mesh_serial.get_vertices();
-  
-  // Create a vector to mark every triangulation vertix if they are on boundary
-  std::vector<bool> triangulation_boundary_mask = std::vector<bool>(triangulation_vertices.size(), false);
-  for(const auto [key, value] : boundary_vertices){
-    triangulation_boundary_mask[key] = true;
-  }
+    // @TODO: Assign custom name file based on mesh file name 
+    const std::string file_name = problem.get_mesh_file_name() + ".cells_domain"; 
 
-  // Only need to retrieve quadrature points from cells
-  FEValues<DIM> fe_values(*fe, *quadrature,update_quadrature_points);
-
-  double white_coeff = problem.get_white_matter_portion();
-
-    // Current global quadrature point id.
-  unsigned quadrature_point_id = 0;
-
-
-  // Iterate through the cells  
-  for (const auto &cell : dof_handler_serial.active_cell_iterators()){
-
-    // NO PARALLEL YET
-    /*
-    if (!cell->is_locally_owned()){
-      continue;
+   
+    // Tries to load existing file
+    if(loadVectorFromFile(cells_domain, file_name)){
+      std::cout << "Found valid file.\n";
+      // Evil goto but functional in this context
+      goto broadcast;
     }
-    */
 
-    // Set focus on current cell for the FEValues object 
-    fe_values.reinit(cell);
+    std::cout << "It could take a while.\n";
 
-    // For each quadrature point in cell
-    for (const Point<DIM> &cell_quadrature_point : fe_values.get_quadrature_points())
-    {
+    // Retrieve all vertices on the boundary 
+    std::map<unsigned int, Point<DIM>> boundary_vertices = GridTools::get_all_vertices_at_boundary(mesh_serial);
+    
+    // Retrieve all vertices from the triangulation 
+    std::vector<Point<DIM>> triangulation_vertices=mesh_serial.get_vertices();
+    
+    // Create a vector to mark every triangulation vertix if they are on boundary.
+    // It is needed to calculate the closest point with GridTools::find_closest_vertex, 
+    // but limited on the boundary. 
+    std::vector<bool> triangulation_boundary_mask = std::vector<bool>(triangulation_vertices.size(), false);
+    for(const auto [key, value] : boundary_vertices){
+      triangulation_boundary_mask[key] = true;
+    }
+
+    // Scale coefficent describing the ratio between white and gray matter.
+    double white_coeff = problem.get_white_matter_portion();
+
+    // Current checked checked idx.
+    unsigned checked_cells = 0;
+
+    // Iterate cells in the triangulation
+    for (const auto &cell : mesh_serial){
+
+      types::global_cell_index global_cell_index = cell.global_active_cell_index();
+
+      // Choosing randomly one of the vertices of the cell, 
+      // but we could be more precise calculating its center. 
+      Point<DIM> cell_point = cell.vertex(0);
+
+
       // VERY COMPUTING INTENSIVE 
-      // Find the closest vertex point on the boundary 
-      unsigned closest_boundary_id = GridTools::find_closest_vertex(mesh_serial, cell_quadrature_point, triangulation_boundary_mask);
+      // Find the closest vertex point, but only on the boundary 
+      types::global_vertex_index closest_boundary_id = GridTools::find_closest_vertex(mesh_serial, cell_point, triangulation_boundary_mask);
       Point<DIM> closest_boundary_point = triangulation_vertices[closest_boundary_id];
       // -------------------------
 
-      // If the quadrature point is nearest to the center of the mesh box than its closest vertex on the white boundary,
+      // If the vertex point is nearest to the center of the mesh box than its closest vertex on the white boundary,
       // it is in the white portion. 
-      if(cell_quadrature_point.distance(box_center) < white_coeff*closest_boundary_point.distance(box_center))
-        quadrature_points_domain[quadrature_point_id]=0;
+      if(cell_point.distance(box_center) < white_coeff*closest_boundary_point.distance(box_center))
+        cells_domain[global_cell_index]=0;
       else
-        quadrature_points_domain[quadrature_point_id]=1;
+        cells_domain[global_cell_index]=1;
 
+      printLoadingBar(checked_cells, n_cells);
+      checked_cells ++;
 
-      printLoadingBar(quadrature_point_id, n_points);
-      quadrature_point_id ++;
     }
 
+    saveVectorToFile(cells_domain, file_name);
   }
 
-  // Save to file computed vector
-  saveVectorToFile(quadrature_points_domain, file_name);
-
-  }
-
-  MPI_Bcast(quadrature_points_domain.data(), quadrature_points_domain.size(), MPI_INT, 0, MPI_COMM_WORLD);
+broadcast:
+  MPI_Bcast(cells_domain.data(), cells_domain.size(), MPI_INT, 0, MPI_COMM_WORLD);
 }
 
 template<unsigned int DIM>
-Tensor<2, DIM> NDSolver<DIM>::evaluate_diffusion_coeff(const unsigned int &quadrature_point_index, const Point<DIM> &p) const{
+Tensor<2, DIM> NDSolver<DIM>::evaluate_diffusion_coeff(const types::global_cell_index &global_cell_index, const Point<DIM> &p) const{
   auto gray_diffusion_tensor = problem.get_gray_diffusion_tensor();
   auto white_diffusion_tensor = problem.get_white_diffusion_tensor();
 
+
 #if ANYSOTROPIC
-  return quadrature_points_domain[quadrature_point_index] == 0 ? 
+  return cells_domain[global_cell_index] == 0 ? 
     white_diffusion_tensor.value(p) :
     gray_diffusion_tensor.value(p);
 #else
-    return gray_diffusion_tensor.value(p);
+    return white_diffusion_tensor.value(p);
 #endif
-     
+ 
 };
 
 template<unsigned int DIM>
@@ -440,8 +426,8 @@ NDSolver<DIM>::setup()
   // ANYSOTROPIC EVALUATION
 #if ANYSOTROPIC
   {
-    pcout << std::endl << "Evaluating quadrature points domain." << std::endl;
-    compute_quadrature_points_domain();
+    pcout << std::endl << "Evaluating cells domain." << std::endl;
+    compute_cells_domain();
   }
 #endif
 }
@@ -500,7 +486,7 @@ NDSolver<DIM>::assemble_system()
 
           // Evaluate the Diffusion term on the current quadrature point.
           // Pass also the global quadrature point index to check in which part of the brain it is located. 
-          const Tensor<2, DIM> diffusion_coefficent_loc = evaluate_diffusion_coeff(quadrature_point_id, fe_values.quadrature_point(q));
+          const Tensor<2, DIM> diffusion_coefficent_loc = evaluate_diffusion_coeff(cell->global_active_cell_index(), fe_values.quadrature_point(q));
 
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
