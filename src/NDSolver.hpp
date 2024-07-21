@@ -1,7 +1,7 @@
 #ifndef ND_SOLVER_HPP
 #define ND_SOLVER_HPP 
 
-#define ANYSOTROPIC true 
+#define ANYSOTROPIC true
 
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/quadrature_lib.h>
@@ -208,57 +208,69 @@ bool loadVectorFromFile(std::vector<T>& vec, const std::string& filename) {
 }
 
 /**
- * Compute the position of every cell with respect
+ * Since the brain is divided into two parts, white and gray matter,
+ * we compute the position of every cell with respect
  * to the white and gray partion of the brain, and save the resulting
- * boolean vector.
+ * boolean vector. This will be used to evaluate the diffusion tensor 
+ * on the current cell with repesct to the color type.
  *  
 */
 template<unsigned int DIM>
 void NDSolver<DIM>::compute_cells_domain(){
 
-  // Number of cells in the triangulation
+  // Number of active cells in the triangulation
   unsigned n_cells = mesh_serial.n_global_active_cells();
-  // Initialize flag vector to zeros. 
+
+  // Vector to store the domain of every cell, 0 for white, 1 for gray
   cells_domain = std::vector<int>(n_cells, 0);
 
-  if(mpi_rank == 0){
+  // @TODO: Assign custom name file based on mesh file name 
+  const std::string file_name = problem.get_mesh_file_name() + ".cells_domain"; 
 
-    // @TODO: Assign custom name file based on mesh file name 
-    const std::string file_name = problem.get_mesh_file_name() + ".cells_domain"; 
 
-   
-    // Tries to load existing file
-    if(loadVectorFromFile(cells_domain, file_name)){
-      std::cout << "Found valid file.\n";
-      // Evil goto but functional in this context
-      goto broadcast;
-    }
+  // Tries to load existing file
+  if(loadVectorFromFile(cells_domain, file_name)){
+    std::cout << "Cells color domain file found at " + file_name + "\n";
+    return;
+  }
+  
+  std::cout << "Computing cells color domain, it could take a while.\n";
 
-    std::cout << "It could take a while.\n";
 
-    // Retrieve all vertices on the boundary 
-    std::map<unsigned int, Point<DIM>> boundary_vertices = GridTools::get_all_vertices_at_boundary(mesh_serial);
-    
-    // Retrieve all vertices from the triangulation 
-    std::vector<Point<DIM>> triangulation_vertices=mesh_serial.get_vertices();
-    
-    // Create a vector to mark every triangulation vertix if they are on boundary.
-    // It is needed to calculate the closest point with GridTools::find_closest_vertex, 
-    // but limited on the boundary. 
-    std::vector<bool> triangulation_boundary_mask = std::vector<bool>(triangulation_vertices.size(), false);
-    for(const auto [key, value] : boundary_vertices){
-      triangulation_boundary_mask[key] = true;
-    }
+  // Retrieve all vertices on the boundary 
+  std::map<unsigned int, Point<DIM>> boundary_vertices = GridTools::get_all_vertices_at_boundary(mesh_serial);
+  
+  // Retrieve all vertices from the triangulation 
+  std::vector<Point<DIM>> triangulation_vertices=mesh_serial.get_vertices();
+  
+  // Create a vector to mark every triangulation vertix if they are on boundary.
+  // It is needed to calculate the closest point with GridTools::find_closest_vertex, 
+  // but limited on the boundary. 
+  std::vector<bool> triangulation_boundary_mask = std::vector<bool>(triangulation_vertices.size(), false);
+  for(const auto [key, value] : boundary_vertices){
+    triangulation_boundary_mask[key] = true;
+  }
 
-    // Scale coefficent describing the ratio between white and gray matter.
-    double white_coeff = problem.get_white_matter_portion();
+  // Scale coefficent describing the ratio between white and gray matter.
+  double white_coeff = problem.get_white_gray_ratio();
 
-    // Current checked checked idx.
-    unsigned checked_cells = 0;
+  // Current checked checked idx.
+  unsigned checked_cells = 0;
 
-    // Iterate cells in the triangulation
-    for (const auto &cell : mesh_serial){
+  // MPI distribution parameters
+  int process_cells = n_cells / mpi_size;
+  int remainder = n_cells % mpi_size;
+  int start = process_cells * mpi_rank;
+  int end = start + process_cells;
+  if(mpi_rank == mpi_size - 1){
+    end += remainder;
+  }
+  //
 
+  // Iteration over the cells is distributed among the processes
+  int i = 0;
+  for (const auto& cell : mesh_serial){
+    if(i >= start && i < end){
       types::global_cell_index global_cell_index = cell.global_active_cell_index();
 
       // Choosing randomly one of the vertices of the cell, 
@@ -279,16 +291,41 @@ void NDSolver<DIM>::compute_cells_domain(){
       else
         cells_domain[global_cell_index]=1;
 
-      printLoadingBar(checked_cells, n_cells);
       checked_cells ++;
-
     }
 
-    saveVectorToFile(cells_domain, file_name);
+    if(mpi_rank == 0)
+      printLoadingBar(checked_cells, end-start);
+
+    i++;
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+  
+  // Gather the results from all processes
+  {
+    std::vector<int> counts(mpi_size-1, process_cells);
+    counts.push_back(process_cells + remainder);
+    std::vector<int> displacements(mpi_size);
+    for(int i = 0; i < mpi_size; i++){
+      displacements[i] = process_cells * i;
+    }
+    MPI_Gatherv(cells_domain.data() + start, end-start, MPI_INT, cells_domain.data(), counts.data(), displacements.data(), MPI_INT, 0, MPI_COMM_WORLD);
   }
 
-broadcast:
-  MPI_Bcast(cells_domain.data(), cells_domain.size(), MPI_INT, 0, MPI_COMM_WORLD);
+  // Just a check
+  if(mpi_rank == 0){
+    int count = 0;
+    for(auto& cell : cells_domain){
+      count += cell == 0 ? 0 : 1;
+    }
+    std::cout << "Found " << count << " gray cells\n";
+  }
+
+  // Save the vector to file
+  if(mpi_rank == 0)
+    saveVectorToFile(cells_domain, file_name);
+
+  MPI_Barrier(MPI_COMM_WORLD);
 }
 
 template<unsigned int DIM>

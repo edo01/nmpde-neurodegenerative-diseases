@@ -102,9 +102,9 @@ int main(int argc, char *argv[]) {
       break;
     case 3:
       {
-        ExponentialInitialCondition<3> initial_condition(brain_origin, 1, 0.95, 10);
+        ExponentialInitialCondition<3> initial_condition(cube_origin, 1, 0.95, 10);
         //QuadraticInitialCondition<3> initial_condition(brain_origin, 0.95, 10);
-        RadialFiberField<3> fiber_field(brain_origin);
+        RadialFiberField<3> fiber_field(cube_origin);
         NDProblem<3> problem(mesh, deltat, T, alpha, d_ext, d_axn, initial_condition, fiber_field, 0.5);
         NDSolver<3> solver(problem, degree, output_dir, output_filename);
         problem.export_problem(std::string(output_dir) + output_filename + ".problem");
