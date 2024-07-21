@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
       break;
     case 2:
       {
-        ExponentialInitialCondition<2> initial_condition;
+        ExponentialInitialCondition<2> initial_condition(square_origin, 0.01, 0.4, 1);
         RadialFiberField<2> fiber_field;
         NDProblem<2> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
         const double min_step = 1e-9;
@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
       break;
     case 3:
       {
-        ExponentialInitialCondition<3> initial_condition(brain_origin, 1, 0.95, 10);
+        ExponentialInitialCondition<3> initial_condition(cube_origin, 1, 0.95, 10);
         //QuadraticInitialCondition<3> initial_condition(brain_origin, 0.95, 10);
         RadialFiberField<3> fiber_field(brain_origin);
         NDProblem<3> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
