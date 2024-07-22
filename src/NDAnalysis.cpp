@@ -92,13 +92,14 @@ int main(int argc, char *argv[]) {
       break;
     case 2:
       {
-        ExponentialInitialCondition<2> initial_condition(square_origin, 0.01, 0.4, 1);
-        RadialFiberField<2> fiber_field;
+        //ExponentialInitialCondition<2> initial_condition(square_origin, 0.01, 0.4, 1);
+        ConstantInitialCondition<2> initial_condition(0.4, square_origin, 0.1);  
+        RadialFiberField<2> fiber_field(square_origin);
         NDProblem<2> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
-        const double min_step = 1e-9;
-        const double TOL = 1e-3;
-        FESolver<2> solver(problem, deltat, T, degree, true, TOL, 0.5, min_step,  output_dir, output_filename);
-        //BESolver<2> solver(problem, deltat, T, degree,  output_dir, output_filename);
+       // const double min_step = 1e-9;
+       // const double TOL = 1e-3;
+       // FESolver<2> solver(problem, deltat, T, degree, true, TOL, 0.5, min_step,  output_dir, output_filename);
+        BESolver<2> solver(problem, deltat, T, degree,  output_dir, output_filename);
         problem.export_problem(std::string(output_dir) + output_filename + ".problem");
         solver.setup();
         solver.solve();
@@ -106,9 +107,10 @@ int main(int argc, char *argv[]) {
       break;
     case 3:
       {
-        ExponentialInitialCondition<3> initial_condition(cube_origin, 1, 0.95, 10);
+        //ExponentialInitialCondition<3> initial_condition(cube_origin, 0.01, 0.95, 1);
+        ConstantInitialCondition<3> initial_condition(0.4, cube_origin, 0.1);  
         //QuadraticInitialCondition<3> initial_condition(brain_origin, 0.95, 10);
-        RadialFiberField<3> fiber_field(brain_origin);
+        RadialFiberField<3> fiber_field(cube_origin);
         NDProblem<3> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
         BESolver<3> solver(problem, deltat, T, degree, output_dir, output_filename);
         problem.export_problem(std::string(output_dir) + output_filename + ".problem");

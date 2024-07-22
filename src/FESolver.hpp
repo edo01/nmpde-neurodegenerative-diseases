@@ -224,7 +224,6 @@ FESolver<DIM>::assemble_system()
 
   // get the parameters of the problem once for all
   const double alpha = this->problem.get_alpha();
-  const auto diffusion_tensor = this->problem.get_diffusion_tensor();
   for (const auto &cell : this->dof_handler.active_cell_iterators())
     {
       if (!cell->is_locally_owned())
@@ -238,9 +237,10 @@ FESolver<DIM>::assemble_system()
 
       for (unsigned int q = 0; q < n_q; ++q)
         {
-          //evaluate the Diffusion term on the current quadrature point
-          const Tensor<2, DIM> diffusion_coefficent_loc =
-            diffusion_tensor.value(fe_values.quadrature_point(q));
+
+          // Evaluate the Diffusion term on the current quadrature point.
+          // Pass also the global quadrature point index to check in which part of the brain it is located. 
+          const Tensor<2, DIM> diffusion_coefficent_loc = this->evaluate_diffusion_coeff(cell->global_active_cell_index(), fe_values.quadrature_point(q));
 
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {

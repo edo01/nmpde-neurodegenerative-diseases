@@ -165,11 +165,17 @@ protected:
   // Vector which maps every triangulation cell to a part of the brain denoted by a value:
   // 0 if it is in the white portion or 1 if it is in the gray portion. @TODO: could be boolean but some problems with file storing and loading
   std::vector<int> cells_domain;
+
+  private: 
+    void printLoadingBar(int current, int total, int barLength = 50);
+    void saveVectorToFile(std::vector<int>& vec, const std::string& filename);
+    bool loadVectorFromFile(std::vector<int>& vec, const std::string& filename);
 };
 
-void printLoadingBar(int current, int total, int barLength = 50) {
+template<unsigned int DIM>
+void NDSolver<DIM>::printLoadingBar(int current, int total, int barLength) {
     float progress = (float)current / total;
-    int pos = barLength * progress;
+    int pos = (int)(barLength * progress);
 
     std::cout << "[";
     for (int i = 0; i < barLength; ++i) {
@@ -181,20 +187,22 @@ void printLoadingBar(int current, int total, int barLength = 50) {
     std::cout.flush();
 }
 
-template<typename T>
-void saveVectorToFile(std::vector<T>& vec, const std::string& filename) {
+template<unsigned int DIM>
+void NDSolver<DIM>::saveVectorToFile(std::vector<int>& vec, const std::string& filename) {
     std::ofstream outfile(filename, std::ios::out | std::ios::binary);
     outfile.write(reinterpret_cast<const char*>(vec.data()), vec.size() * sizeof(T));
     outfile.close();
 }
 
 // Fix messages print in parallel
-template<typename T>
-bool loadVectorFromFile(std::vector<T>& vec, const std::string& filename) {
-    std::cout<< "Trying to read quadrature points domain file '" << filename << "'" <<  std::endl;
+template<unsigned int DIM>
+bool NDSolver<DIM>::loadVectorFromFile(std::vector<int>& vec, const std::string& filename) {
+    if(mpi_rank == 0)
+      std::cout<< "Trying to read quadrature points domain file '" << filename << "'" <<  std::endl;
     std::ifstream infile(filename, std::ios::in | std::ios::binary);
     if (!infile) {
-        std::cout<< "Failed to open file\n";
+        if(mpi_rank == 0)
+          std::cout<< "Failed to open file\n";
         return false;
     }
 
@@ -202,7 +210,7 @@ bool loadVectorFromFile(std::vector<T>& vec, const std::string& filename) {
     std::streamsize size = infile.tellg();
     infile.seekg(0, std::ios::beg);
 
-    vec.resize(size / sizeof(T));
+    vec.resize(size / sizeof(int));
     infile.read(reinterpret_cast<char*>(vec.data()), size);
 
     // Check if the read operation was successful
@@ -238,11 +246,13 @@ void NDSolver<DIM>::compute_cells_domain(){
 
   // Tries to load existing file
   if(loadVectorFromFile(cells_domain, file_name)){
-    std::cout << "Cells color domain file found at " + file_name + "\n";
+    if(mpi_rank == 0)
+      std::cout << "Cells color domain file found at " + file_name + "\n";
     return;
   }
-  
-  std::cout << "Computing cells color domain, it could take a while.\n";
+
+  if(mpi_rank == 0) 
+    std::cout << "Computing cells color domain, it could take a while.\n";
 
 
   // Retrieve all vertices on the boundary 
@@ -278,7 +288,10 @@ void NDSolver<DIM>::compute_cells_domain(){
   // Iteration over the cells is distributed among the processes
   int i = 0;
   for (const auto& cell : mesh_serial){
-    if(i >= start && i < end){
+    // @TODO: Could refactor with the iterator
+    if(i >= end)
+      break;
+    else if(i >= start){
       types::global_cell_index global_cell_index = cell.global_active_cell_index();
 
       // Choosing randomly one of the vertices of the cell, 
@@ -314,7 +327,7 @@ void NDSolver<DIM>::compute_cells_domain(){
     std::vector<int> counts(mpi_size-1, process_cells);
     counts.push_back(process_cells + remainder);
     std::vector<int> displacements(mpi_size);
-    for(int i = 0; i < mpi_size; i++){
+    for(size_t i = 0; i < mpi_size; i++){
       displacements[i] = process_cells * i;
     }
     MPI_Gatherv(cells_domain.data() + start, end-start, MPI_INT, cells_domain.data(), counts.data(), displacements.data(), MPI_INT, 0, MPI_COMM_WORLD);
@@ -475,121 +488,6 @@ NDSolver<DIM>::setup()
     compute_cells_domain();
   }
 #endif
-}
-
-template<unsigned int DIM>
-void
-NDSolver<DIM>::assemble_system()
-{
-
-
-  const unsigned int dofs_per_cell = fe->dofs_per_cell;
-  const unsigned int n_q           = quadrature->size();
-
-  FEValues<DIM> fe_values(*fe,
-                          *quadrature,
-                          update_values | update_gradients |
-                            update_quadrature_points | update_JxW_values);
-
-  FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
-  Vector<double>     cell_residual(dofs_per_cell);
-
-  std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
-
-  jacobian_matrix = 0.0;
-  residual_vector = 0.0;
-
-  // Value and gradient of the solution on current cell.
-  std::vector<double>         solution_loc(n_q);
-  std::vector<Tensor<1, DIM>> solution_gradient_loc(n_q);
-
-  // Value of the solution at previous timestep (un) on current cell.
-  std::vector<double> solution_old_loc(n_q);
-
-  // get the parameters of the problem once for all
-  const double alpha = problem.get_alpha();
-  const double deltat = problem.get_deltat();
-  //const auto diffusion_tensor = problem.get_diffusion_tensor();
-
-  int quadrature_point_id=0; 
-  for (const auto &cell : dof_handler.active_cell_iterators())
-    {
-      if (!cell->is_locally_owned())
-        continue;
-
-      fe_values.reinit(cell);
-
-      cell_matrix   = 0.0;
-      cell_residual = 0.0;
-
-      fe_values.get_function_values(solution, solution_loc);
-      fe_values.get_function_gradients(solution, solution_gradient_loc);
-      fe_values.get_function_values(solution_old, solution_old_loc);
-
-      for (unsigned int q = 0; q < n_q; ++q)
-        {
-
-          // Evaluate the Diffusion term on the current quadrature point.
-          // Pass also the global quadrature point index to check in which part of the brain it is located. 
-          const Tensor<2, DIM> diffusion_coefficent_loc = evaluate_diffusion_coeff(cell->global_active_cell_index(), fe_values.quadrature_point(q));
-
-          for (unsigned int i = 0; i < dofs_per_cell; ++i)
-            {
-              for (unsigned int j = 0; j < dofs_per_cell; ++j)
-                {
-                  // Mass matrix. 
-                  // phi_i * phi_j/deltat * dx
-                  cell_matrix(i, j) += fe_values.shape_value(i, q) *
-                                       fe_values.shape_value(j, q) / deltat *
-                                       fe_values.JxW(q);
-
-                  // Non-linear stiffness matrix, first term.
-                  // D*grad(phi_i) * grad(phi_j) * dx
-                  cell_matrix(i, j) += (diffusion_coefficent_loc 
-                                   * fe_values.shape_grad(j, q)) *
-                    fe_values.shape_grad(i, q) * fe_values.JxW(q);
-
-                  // Non-linear stiffness matrix, second term.
-                  // alpha * (1-2*c) * phi_i * phi_j * dx
-                  cell_matrix(i, j) -=
-                    alpha * (1-2.0*solution_loc[q]) * fe_values.shape_value(j, q) *
-                    fe_values.shape_value(i, q) * fe_values.JxW(q);
-                    
-                }
-
-              // Assemble the residual vector (with changed sign).
-
-              // Time derivative term.
-              // phi_i * (c - c_old)/deltat * dx
-              cell_residual(i) -= (solution_loc[q] - solution_old_loc[q]) /
-                                  deltat * fe_values.shape_value(i, q) *
-                                  fe_values.JxW(q);
-
-              // Diffusion term.
-              // D*grad(c) * grad(phi_i) * dx
-              cell_residual(i) -= (diffusion_coefficent_loc *
-                  solution_gradient_loc[q]) * fe_values.shape_grad(i, q) * fe_values.JxW(q);
-
-              // Reaction term. (Non-linear)
-              // alpha * c * (1-c) * phi_i * dx
-              cell_residual(i) +=
-                alpha * solution_loc[q] * (1-solution_loc[q]) * fe_values.shape_value(i, q) *
-                fe_values.JxW(q);
-
-            }
-
-            quadrature_point_id ++;
-        }
-
-      cell->get_dof_indices(dof_indices);
-
-      jacobian_matrix.add(dof_indices, cell_matrix);
-      residual_vector.add(dof_indices, cell_residual);
-
-    }
-
-  jacobian_matrix.compress(VectorOperation::add);
-  residual_vector.compress(VectorOperation::add);
 }
 
 
