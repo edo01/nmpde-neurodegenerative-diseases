@@ -92,12 +92,13 @@ int main(int argc, char *argv[]) {
       break;
     case 2:
       {
-        ExponentialInitialCondition<2> initial_condition(square_origin, 0.1, 0.95, 10);
-        // ConstantInitialCondition<2> initial_condition(0.4, square_origin, 0.1);  
-        // QuadraticInitialCondition<2> initial_condition(square_origin, 0.95, 0.05);
+        const Point<2> random_point = Point<2>(0.7, 0.7);
+        // ExponentialInitialCondition<2> initial_condition(random_point, 0.1, 0.95, 10);
+        ConstantInitialCondition<2> initial_condition(1, random_point, 0.1);  
+        // QuadraticInitialCondition<2> initial_condition(random_point, 0.95, 0.1);
         // RadialFiberField<2> fiber_field(square_origin);
-        CircumferentialFiberField2D fiber_field(square_origin);
-        // AxonBasedFiberField<2> fiber_field(0);
+        // CircumferentialFiberField2D fiber_field(square_origin);
+        AxonBasedFiberField_2D fiber_field(0.3, square_origin);
         NDProblem<2> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
        // const double min_step = 1e-9;
        // const double TOL = 1e-3;
