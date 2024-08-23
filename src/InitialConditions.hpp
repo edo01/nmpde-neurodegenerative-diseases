@@ -31,8 +31,8 @@ class ConstantInitialCondition: public NDProblem<DIM>::InitialConcentration
         
     private:
       double _C_0;
-      double _ray;
       Point <DIM> _origin;
+      double _ray;
 };
 
 template<unsigned int DIM>
@@ -48,13 +48,13 @@ class ExponentialInitialCondition: public NDProblem<DIM>::InitialConcentration
         }
       
       ExponentialInitialCondition(Point<DIM> origin = Point<DIM>(), double sigma = 0.1, double C_0=0.4, double ray=4)
-        : _origin(origin), sigma(sigma), _C_0(C_0), _ray(ray) {}
+        : _C_0(C_0), _origin(origin), _ray(ray), sigma(sigma) {}
         
     private:
-      Point<DIM> _origin;
-      double sigma;
       double _C_0;
+      Point<DIM> _origin;
       double _ray;
+      double sigma;
 };
 
 template<unsigned int DIM>
@@ -70,11 +70,11 @@ class QuadraticInitialCondition: public NDProblem<DIM>::InitialConcentration
         }
 
         QuadraticInitialCondition(Point<DIM> origin = Point<DIM>(), double C_0=0.9, double ray=5)
-        : _origin(origin), _C_0(C_0), _ray_squared(ray*ray) {}
+        : _C_0(C_0), _origin(origin), _ray_squared(ray*ray) {}
 
     private:
-        Point<DIM> _origin;
         double _C_0;
+        Point<DIM> _origin;
         double _ray_squared;
 };
 
