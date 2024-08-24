@@ -2,6 +2,7 @@
 #define INITIAL_CONDITIONS_HPP
 
 #include "NDSolver.hpp"
+#include "SeedingRegions.hpp"
 
 using namespace dealii;
 
@@ -19,20 +20,17 @@ class ConstantInitialCondition: public NDProblem<DIM>::InitialConcentration
     public:
         virtual double value(const Point<DIM> &p, const unsigned int /*component*/ = 0) const override
         {
-            if(_ray == 0.0)
-              return _C_0;
-            if(p.distance(_origin) > _ray)
-                return 0.0;
+          if (_sr.is_inside(p))
             return _C_0;
+          return 0.0;
         }
       
-      ConstantInitialCondition(double C_0=0.4, Point<DIM> origin = Point<DIM>(), double ray=0)
-        : _C_0(C_0), _origin(origin), _ray(ray) {}
+      ConstantInitialCondition(double C_0=0.4, SeedingRegion<DIM> sr = SeedingRegion<DIM>())
+        : _C_0(C_0), _sr(sr) {}
         
     private:
       double _C_0;
-      Point <DIM> _origin;
-      double _ray;
+      SeedingRegion<DIM> _sr;
 };
 
 template<unsigned int DIM>
@@ -47,7 +45,7 @@ class ExponentialInitialCondition: public NDProblem<DIM>::InitialConcentration
             return _C_0*std::exp(-distance_from_origin*distance_from_origin/(2*sigma*sigma));
         }
       
-      ExponentialInitialCondition(Point<DIM> origin = Point<DIM>(), double sigma = 0.1, double C_0=0.4, double ray=4)
+      ExponentialInitialCondition(double sigma = 0.1, double C_0=0.4, )
         : _C_0(C_0), _origin(origin), _ray(ray), sigma(sigma) {}
         
     private:
