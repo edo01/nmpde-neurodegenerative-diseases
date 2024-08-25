@@ -20,17 +20,17 @@ class ConstantInitialCondition: public NDProblem<DIM>::InitialConcentration
     public:
         virtual double value(const Point<DIM> &p, const unsigned int /*component*/ = 0) const override
         {
-          if (_sr.is_inside(p))
+          if (_sr && _sr->is_inside(p))
             return _C_0;
           return 0.0;
         }
       
-      ConstantInitialCondition(double C_0=0.4, SeedingRegion<DIM> sr = SeedingRegion<DIM>())
-        : _C_0(C_0), _sr(sr) {}
+      ConstantInitialCondition(double C_0=0.4, std::unique_ptr<SeedingRegion<DIM>> sr = nullptr)
+        : _C_0(C_0), _sr(std::move(sr)) {}
         
     private:
       double _C_0;
-      SeedingRegion<DIM> _sr;
+      std::unique_ptr<SeedingRegion<DIM>> _sr;
 };
 
 template<unsigned int DIM>
@@ -45,7 +45,7 @@ class ExponentialInitialCondition: public NDProblem<DIM>::InitialConcentration
             return _C_0*std::exp(-distance_from_origin*distance_from_origin/(2*sigma*sigma));
         }
       
-      ExponentialInitialCondition(double sigma = 0.1, double C_0=0.4, )
+      ExponentialInitialCondition(double sigma = 0.1, double C_0=0.4, Point<DIM> origin = Point<DIM>(), double ray = 10)
         : _C_0(C_0), _origin(origin), _ray(ray), sigma(sigma) {}
         
     private:

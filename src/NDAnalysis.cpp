@@ -24,10 +24,11 @@ int main(int argc, char *argv[]) {
   const char *mesh = "../meshes/mesh-square-40.msh";
   const char *output_filename = "output";
   const char *output_dir = "./";
+  int seeding_region_type = 0;
 
   // getopt options
   int opt;
-  while ((opt = getopt(argc, argv, "d:T:a:t:e:x:m:g:h:D:o:")) != -1) {
+  while ((opt = getopt(argc, argv, "d:T:a:t:e:x:m:g:h:D:o:s:")) != -1) {
     switch (opt) {
       case 'D':
         dim = std::atoi(optarg);
@@ -59,8 +60,11 @@ int main(int argc, char *argv[]) {
       case 'd':
         output_dir = optarg;
         break;
+      case 's':
+        seeding_region_type = std::atoi(optarg);
+        break;
       case 'h':
-        std::cerr << "Usage: " << argv[0] << " [-D dim] [-T T] [-a alpha] [-t deltat] [-g degree] [-e d_ext] [-x d_axn] [-m mesh] [-o output_filename] [-d output_dir]\n";
+        std::cerr << "Usage: " << argv[0] << " [-D dim] [-T T] [-a alpha] [-t deltat] [-g degree] [-e d_ext] [-x d_axn] [-m mesh] [-o output_filename] [-d output_dir] [-s seeding_region_type]\n";
         std::cerr << "  -m: mesh file\n";
         std::cerr << "  -D: dimension of the problem\n";
         std::cerr << "  -a: growth factor\n";
@@ -71,9 +75,10 @@ int main(int argc, char *argv[]) {
         std::cerr << "  -T: final time\n";
         std::cerr << "  -o: output filename\n";
         std::cerr << "  -d: output directory\n";
+        std::cerr << "  -s: seeding region type (0: AmyloidBetaDeposit, 1: TauInclusions, 2: TDP43Inclusions, 3: AlphaSynucleinInclusions)\n";
         exit(EXIT_SUCCESS);
       default:
-        std::cerr << "Usage: " << argv[0] << " [-D dim] [-T T] [-a alpha] [-t deltat] [-g degree] [-e d_ext] [-x d_axn] [-m mesh] [-o output_filename] [-d output_dir]\n";
+        std::cerr << "Usage: " << argv[0] << " [-D dim] [-T T] [-a alpha] [-t deltat] [-g degree] [-e d_ext] [-x d_axn] [-m mesh] [-o output_filename] [-d output_dir] [-s seeding_region_type]\n";
         exit(EXIT_FAILURE);
     }
   }
@@ -92,19 +97,11 @@ int main(int argc, char *argv[]) {
       break;
     case 2:
       {
-        const Point<2> random_point = Point<2>(0.7, 0.7);
-        SeedingRegion<2> square_origin(random_point, 0.1);
-        // ExponentialInitialCondition<2> initial_condition(random_point, 0.1, 0.95, 10);
-        ConstantInitialCondition<2> initial_condition(1, square_origin);  
-        // QuadraticInitialCondition<2> initial_condition(random_point, 0.95, 0.1);
-        // RadialFiberField<2> fiber_field(square_origin);
-        // CircumferentialFiberField2D fiber_field(square_origin);
-        AxonBasedFiberField_2D fiber_field(0.3, random_point);
+        const Point<2> random_point(0.7, 0.7);
+        ConstantInitialCondition<2> initial_condition(1.0, std::make_unique<GeneralSeedingRegion<2>>(random_point, 0.1));
+        AxonBasedFiberField_2D fiber_field(0.3, square_origin);
         NDProblem<2> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
-       // const double min_step = 1e-9;
-       // const double TOL = 1e-3;
-       // FESolver<2> solver(problem, deltat, T, degree, true, TOL, 0.5, min_step,  output_dir, output_filename);
-        BESolver<2> solver(problem, deltat, T, degree,  output_dir, output_filename);
+        BESolver<2> solver(problem, deltat, T, degree, output_dir, output_filename);
         problem.export_problem(std::string(output_dir) + output_filename + ".problem");
         solver.setup();
         solver.solve();
@@ -112,11 +109,15 @@ int main(int argc, char *argv[]) {
       break;
     case 3:
       {
-        AmyloidBetaDeposit seeding_region;
-        // ExponentialInitialCondition<3> initial_condition(brain_origin, 0.1, 0.95, 10);
-        ConstantInitialCondition<3> initial_condition(0.4,seeding_region);  
-        //QuadraticInitialCondition<3> initial_condition(brain_origin, 0.95, 10);
-        // RadialFiberField<3> fiber_field(cube_origin);
+        SeedingRegionType region_type;
+        switch(seeding_region_type) {
+            case 0: region_type = SeedingRegionType::AlphaSynucleinInclusions; break;
+            case 1: region_type = SeedingRegionType::AmyloidBetaDeposit; break;
+            case 2: region_type = SeedingRegionType::TauInclusions; break;
+            case 3: region_type = SeedingRegionType::TDP43Inclusions; break;
+            default: region_type = SeedingRegionType::AlphaSynucleinInclusions;
+        }
+        ConstantInitialCondition<3> initial_condition(0.4, SeedingRegionFactory::create(region_type));
         CircumferentialFiberField3D fiber_field(brain_origin);
         NDProblem<3> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
         BESolver<3> solver(problem, deltat, T, degree, output_dir, output_filename);
