@@ -2,115 +2,90 @@
 #define SEEDING_REGIONS_HPP
 
 #include <deal.II/base/point.h>
+#include <deal.II/grid/tria.h>
+#include <deal.II/grid/tria_iterator.h>
+#include <deal.II/grid/grid_generator.h>
+#include <deal.II/grid/grid_tools.h>
+#include <deal.II/base/point.h>
 #include <memory>
 #include <cmath>
+#include "NDProblem.hpp"
 
 using namespace dealii;
+using vertices = std::pair<Point<3>, Point<3>>;
 
-enum class SeedingRegionType
-{
-    TauInclusions,
-    AmyloidBetaDeposit,
-    TDP43Inclusions,
-    AlphaSynucleinInclusions
-};
-
-template <unsigned int DIM>
-class SeedingRegion
+class SeedingRegion : public NDProblem<3>::InitialConcentration
 {
 public:
-    virtual bool is_inside(const Point<DIM> &p) const = 0;
+    bool is_inside(const Point<3> &p) const {
+        for (const auto &region : _regions) {
+            auto result = GridTools::find_active_cell_around_point(region, p);
+            if (result.state() == IteratorState::valid) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    double value(const Point<3> &p, const unsigned int /* component */ = 0) const override
+    {
+        return is_inside(p) ? _C_0 : 0.0;
+    }
+
+    void create_regions(const std::vector<vertices> &vertices) {
+        for (const auto &vertex : vertices) {
+            Triangulation<3> tria;
+            GridGenerator::hyper_rectangle(tria, vertex.first, vertex.second);
+            _regions.push_back(std::move(tria));
+        }
+    }
+
+    SeedingRegion(double C_0) : _C_0(C_0) {}
     virtual ~SeedingRegion() = default;
-};
-
-template <unsigned int DIM>
-class GeneralSeedingRegion : public SeedingRegion<DIM>
-{
-public:
-    bool is_inside(const Point<DIM> &p) const override
-    {
-        double distance_squared = 0.0;
-        for (unsigned int i = 0; i < DIM; ++i)
-        {
-            double diff = p[i] - _center[i];
-            distance_squared += diff * diff;
-        }
-        return distance_squared <= _radius * _radius;
-    }
-
-    GeneralSeedingRegion(const Point<DIM> &center, double radius)
-        : _center(center), _radius(radius) {}
-
 private:
-    Point<DIM> _center;
-    double _radius;
+    double _C_0;
+    std::vector<Triangulation<3>> _regions;
 };
 
-class TauInclusions : public SeedingRegion<3>
+class TauInclusions : public SeedingRegion
 {
 public:
-    bool is_inside(const Point<3> &p) const override
-    {
-        return p[0] >= 63 && p[0] <= 81 &&
-               p[1] >= 70 && p[1] <= 90 &&
-               p[2] >= 56 && p[2] <= 69;
+    TauInclusions(double C_0) : SeedingRegion(C_0) {
+        std::vector<vertices> vertices;
+        vertices.push_back(std::make_pair(Point<3>(63, 70, 56), Point<3>(81, 90, 69)));
+        create_regions(vertices);
     }
 };
 
-class AmyloidBetaDeposit : public SeedingRegion<3>
+class AmyloidBetaDeposit : public SeedingRegion
 {
 public:
-    bool is_inside(const Point<3> &p) const override
-    {
-        return (p[0] >= 23 && p[0] <= 82) &&
-               ((p[1] >= 22 && p[1] <= 80) || (p[1] >= 100 && p[1] <= 135)) &&
-               (p[2] >= 95 && p[2] <= 118);
+    AmyloidBetaDeposit(double C_0) : SeedingRegion(C_0) {
+        std::vector<vertices> vertices;
+        vertices.push_back(std::make_pair(Point<3>(23, 22, 95), Point<3>(82, 80, 118)));
+        vertices.push_back(std::make_pair(Point<3>(23, 100, 95), Point<3>(82, 135, 118)));
+        create_regions(vertices);
     }
 };
 
-class TDP43Inclusions : public SeedingRegion<3>
+class TDP43Inclusions : public SeedingRegion
 {
 public:
-    bool is_inside(const Point<3> &p) const override
-    {
-        return ((p[0] >= 23 && p[0] <= 82 &&
-                 p[1] >= 48 && p[1] <= 75 &&
-                 p[2] >= 85 && p[2] <= 117) ||
-                (p[0] >= 63 && p[0] <= 81 &&
-                 p[1] >= 80 && p[1] <= 90 &&
-                 p[2] >= 44 && p[2] <= 57));
+    TDP43Inclusions(double C_0) : SeedingRegion(C_0) {
+        std::vector<vertices> vertices;
+        vertices.push_back(std::make_pair(Point<3>(23, 48, 85), Point<3>(82, 75, 117)));
+        vertices.push_back(std::make_pair(Point<3>(63, 80, 44), Point<3>(81, 90, 57)));
+        create_regions(vertices);
     }
 };
 
-class AlphaSynucleinInclusions : public SeedingRegion<3>
+class AlphaSynucleinInclusions : public SeedingRegion
 {
 public:
-    bool is_inside(const Point<3> &p) const override
-    {
-        return p[0] >= 63 && p[0] <= 81 &&
-               p[1] >= 75 && p[1] <= 90 &&
-               p[2] >= 44 && p[2] <= 57;
-    }
-};
-
-class SeedingRegionFactory
-{
-public:
-    static std::unique_ptr<SeedingRegion<3>> create(SeedingRegionType type)
-    {
-        switch (type)
-        {
-        case SeedingRegionType::TauInclusions:
-            return std::make_unique<TauInclusions>();
-        case SeedingRegionType::AmyloidBetaDeposit:
-            return std::make_unique<AmyloidBetaDeposit>();
-        case SeedingRegionType::TDP43Inclusions:
-            return std::make_unique<TDP43Inclusions>();
-        case SeedingRegionType::AlphaSynucleinInclusions:
-            return std::make_unique<AlphaSynucleinInclusions>();
-        default:
-            throw std::invalid_argument("Unknown seeding region type");
-        }
+    AlphaSynucleinInclusions(double C_0) : SeedingRegion(C_0) {
+        std::vector<vertices> vertices;
+        vertices.push_back(std::make_pair(Point<3>(63, 75, 44), Point<3>(81, 90, 57)));
+        create_regions(vertices);
     }
 };
 

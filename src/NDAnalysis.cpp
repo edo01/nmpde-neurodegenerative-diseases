@@ -7,6 +7,7 @@
 #include "FESolver.hpp"
 #include "InitialConditions.hpp"
 #include "FiberFields.hpp"
+#include "SeedingRegions.hpp"
 
 using namespace dealii;
 
@@ -21,6 +22,7 @@ int main(int argc, char *argv[]) {
   unsigned int degree = 1;
   double d_ext = 1.5;
   double d_axn = 3.0;
+  double C_0 = 0.4;
   const char *mesh = "../meshes/mesh-square-40.msh";
   const char *output_filename = "output";
   const char *output_dir = "./";
@@ -28,7 +30,7 @@ int main(int argc, char *argv[]) {
 
   // getopt options
   int opt;
-  while ((opt = getopt(argc, argv, "d:T:a:t:e:x:m:g:h:D:o:s:")) != -1) {
+  while ((opt = getopt(argc, argv, "d:T:a:t:e:x:m:g:h:D:o:s:c:")) != -1) {
     switch (opt) {
       case 'D':
         dim = std::atoi(optarg);
@@ -50,6 +52,9 @@ int main(int argc, char *argv[]) {
         break;
       case 'x':
         d_axn = std::atof(optarg);
+        break;
+      case 'c':
+        C_0 = std::atof(optarg);
         break;
       case 'm':
         mesh = optarg;
@@ -98,7 +103,7 @@ int main(int argc, char *argv[]) {
     case 2:
       {
         const Point<2> random_point(0.7, 0.7);
-        ConstantInitialCondition<2> initial_condition(1.0, std::make_unique<GeneralSeedingRegion<2>>(random_point, 0.1));
+        ConstantInitialCondition<2> initial_condition(1.0, random_point, 0.1);
         AxonBasedFiberField_2D fiber_field(0.3, square_origin);
         NDProblem<2> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
         BESolver<2> solver(problem, deltat, T, degree, output_dir, output_filename);
@@ -109,17 +114,16 @@ int main(int argc, char *argv[]) {
       break;
     case 3:
       {
-        SeedingRegionType region_type;
+        std::unique_ptr<SeedingRegion> sr;
         switch(seeding_region_type) {
-            case 0: region_type = SeedingRegionType::AlphaSynucleinInclusions; break;
-            case 1: region_type = SeedingRegionType::AmyloidBetaDeposit; break;
-            case 2: region_type = SeedingRegionType::TauInclusions; break;
-            case 3: region_type = SeedingRegionType::TDP43Inclusions; break;
-            default: region_type = SeedingRegionType::AlphaSynucleinInclusions;
+            case 0: sr = std::make_unique<AlphaSynucleinInclusions>(C_0); break;
+            case 1: sr = std::make_unique<AmyloidBetaDeposit>(C_0); break;
+            case 2: sr = std::make_unique<TauInclusions>(C_0); break;
+            case 3: sr = std::make_unique<TDP43Inclusions>(C_0); break;
+            default: sr = std::make_unique<AlphaSynucleinInclusions>(C_0);
         }
-        ConstantInitialCondition<3> initial_condition(0.4, SeedingRegionFactory::create(region_type));
         CircumferentialFiberField3D fiber_field(brain_origin);
-        NDProblem<3> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);
+        NDProblem<3> problem(mesh, alpha, d_ext, d_axn, *sr, fiber_field);
         BESolver<3> solver(problem, deltat, T, degree, output_dir, output_filename);
         problem.export_problem(std::string(output_dir) + output_filename + ".problem");
         solver.setup();
