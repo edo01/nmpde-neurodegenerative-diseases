@@ -12,81 +12,84 @@
 #include "NDProblem.hpp"
 
 using namespace dealii;
-using vertices = std::pair<Point<3>, Point<3>>;
 
 class SeedingRegion : public NDProblem<3>::InitialConcentration
 {
+using CornerPair = std::pair<Point<3>, Point<3>>;
 public:
-    bool is_inside(const Point<3> &p) const {
-        for (const auto &region : _regions) {
-            auto result = GridTools::find_active_cell_around_point(region, p);
-            if (result.state() == IteratorState::valid) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     double value(const Point<3> &p, const unsigned int /* component */ = 0) const override
     {
         return is_inside(p) ? _C_0 : 0.0;
     }
 
-    void create_regions(const std::vector<vertices> &vertices) {
-        for (const auto &vertex : vertices) {
-            Triangulation<3> tria;
-            GridGenerator::hyper_rectangle(tria, vertex.first, vertex.second);
-            _regions.push_back(std::move(tria));
+protected:
+    SeedingRegion(double C_0, const std::vector<CornerPair>& corners)
+        : _C_0(C_0), _region() {
+        create_region(corners);
+    }
+
+private:
+    const double _C_0;
+    Triangulation<3> _region;
+
+    bool is_inside(const Point<3> &p) const {
+
+        auto result = GridTools::find_active_cell_around_point(_region, p);
+        if(result.state() == IteratorState::valid) {
+            return true;
+        }
+        else {
+            return false;
         }
     }
 
-    SeedingRegion(double C_0) : _C_0(C_0) {}
-    virtual ~SeedingRegion() = default;
-private:
-    double _C_0;
-    std::vector<Triangulation<3>> _regions;
+    void create_region(const std::vector<CornerPair>& corners) {
+        std::vector<Triangulation<3>> regions;
+
+        for (const auto& corner_pair : corners) {
+            regions.emplace_back();
+            GridGenerator::hyper_rectangle(regions.back(), corner_pair.first, corner_pair.second);
+            GridGenerator::merge_triangulations(_region, regions.back(), _region);
+        }
+    }
 };
 
 class TauInclusions : public SeedingRegion
 {
 public:
-    TauInclusions(double C_0) : SeedingRegion(C_0) {
-        std::vector<vertices> vertices;
-        vertices.push_back(std::make_pair(Point<3>(63, 70, 56), Point<3>(81, 90, 69)));
-        create_regions(vertices);
-    }
+    TauInclusions(double C_0)
+        : SeedingRegion(C_0, {
+            std::make_pair(Point<3>(23, 48, 85), Point<3>(82, 75, 117))
+            }) {}
 };
 
 class AmyloidBetaDeposit : public SeedingRegion
 {
 public:
-    AmyloidBetaDeposit(double C_0) : SeedingRegion(C_0) {
-        std::vector<vertices> vertices;
-        vertices.push_back(std::make_pair(Point<3>(23, 22, 95), Point<3>(82, 80, 118)));
-        vertices.push_back(std::make_pair(Point<3>(23, 100, 95), Point<3>(82, 135, 118)));
-        create_regions(vertices);
-    }
+    AmyloidBetaDeposit(double C_0)
+        : SeedingRegion(C_0, {
+            std::make_pair(Point<3>(23, 22, 95), Point<3>(82, 80, 118)),
+            std::make_pair(Point<3>(23, 100, 95), Point<3>(82, 135, 118))
+            }) {}
 };
 
 class TDP43Inclusions : public SeedingRegion
 {
 public:
-    TDP43Inclusions(double C_0) : SeedingRegion(C_0) {
-        std::vector<vertices> vertices;
-        vertices.push_back(std::make_pair(Point<3>(23, 48, 85), Point<3>(82, 75, 117)));
-        vertices.push_back(std::make_pair(Point<3>(63, 80, 44), Point<3>(81, 90, 57)));
-        create_regions(vertices);
-    }
+    TDP43Inclusions(double C_0) 
+        : SeedingRegion(C_0, {
+            std::make_pair(Point<3>(23, 48, 85), Point<3>(82, 75, 117)),
+            std::make_pair(Point<3>(63, 80, 44), Point<3>(81, 90, 57))
+            }) {}
 };
 
 class AlphaSynucleinInclusions : public SeedingRegion
 {
 public:
-    AlphaSynucleinInclusions(double C_0) : SeedingRegion(C_0) {
-        std::vector<vertices> vertices;
-        vertices.push_back(std::make_pair(Point<3>(63, 75, 44), Point<3>(81, 90, 57)));
-        create_regions(vertices);
-    }
+    AlphaSynucleinInclusions(double C_0)
+        : SeedingRegion(C_0, {
+            std::make_pair(Point<3>(63, 75, 44), Point<3>(81, 80, 57))
+            }) {}
 };
 
 #endif // SEEDING_REGIONS_HPP
