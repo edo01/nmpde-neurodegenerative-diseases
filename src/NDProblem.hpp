@@ -112,6 +112,8 @@ class NDProblem
                     return outer_product(fiberT_1D, fiberT_1D);
                 }
 
+                const FiberField& get_fiber_field() const { return _fiber_field; }
+                
                 protected:
                     const FiberField &_fiber_field;
                     const SymmetricTensor<2,DIM> _identity;

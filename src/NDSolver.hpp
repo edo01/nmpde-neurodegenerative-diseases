@@ -1,7 +1,7 @@
 #ifndef ND_SOLVER_HPP
 #define ND_SOLVER_HPP 
 
-#define ANYSOTROPIC true
+#define ANYSOTROPIC false
 
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/quadrature_lib.h>
@@ -53,7 +53,8 @@ public:
                 const double T_,
                 const unsigned int &r_,
                 const std::string &output_directory_ = "./",
-                const std::string &output_filename_ = "output")
+                const std::string &output_filename_ = "output",
+                const bool save_fiber_field_to_file_ = false)
     :
       problem(problem_)
     , deltat(deltat_)
@@ -65,6 +66,7 @@ public:
     , output_directory(output_directory_)
     , output_filename(output_filename_)
     , mesh(MPI_COMM_WORLD)
+    , save_fiber_field_to_file(save_fiber_field_to_file_)
   {}
 
   virtual ~NDSolver() = default;
@@ -84,6 +86,9 @@ protected:
 
   // Solve the problem for one time step using Newton's method.
   virtual void solve_newton();
+
+  // Write the fiber field to the output file.
+  virtual void write_fiber_field_to_file() const;
 
   // Output.
   void output(const unsigned int &time_step) const;
@@ -165,6 +170,8 @@ protected:
   // Vector which maps every triangulation cell to a part of the brain denoted by a value:
   // 0 if it is in the white portion or 1 if it is in the gray portion. @TODO: could be boolean but some problems with file storing and loading
   std::vector<int> cells_domain;
+
+  const bool save_fiber_field_to_file;
 
   private: 
     void printLoadingBar(int current, int total, int barLength = 50);
@@ -547,6 +554,54 @@ NDSolver<DIM>::solve_newton()
     }
 }
 
+template<unsigned int DIM>
+void
+NDSolver<DIM>::write_fiber_field_to_file() const
+{
+
+    auto &fiber_field = problem.get_white_diffusion_tensor().get_fiber_field();
+    std::array<Vector<double>, DIM> fiber_field_values;
+
+    for (unsigned int i = 0; i < DIM; ++i)
+    {
+        fiber_field_values[i].reinit(mesh.n_active_cells());
+    }
+
+    for (const auto &cell : mesh.active_cell_iterators())
+    {
+
+        if(!cell->is_locally_owned())
+          continue;
+
+        const unsigned int cell_idx = cell->active_cell_index();
+        const auto p = cell->center();
+
+        Vector<double> fiber(DIM);
+        fiber_field.vector_value(p, fiber);
+
+        for (unsigned int i = 0; i < DIM; ++i)
+        {
+            fiber_field_values[i][cell_idx] = fiber[i];
+        }
+
+    }
+
+    DataOut<DIM> data_out;
+
+    data_out.attach_dof_handler(dof_handler);
+
+    std::vector<std::string> fiber_field_names = {"fiber_field_x", "fiber_field_y", "fiber_field_z"};
+
+    for (unsigned int i = 0; i < DIM; ++i)
+    {
+        data_out.add_data_vector(fiber_field_values[i], fiber_field_names[i]);
+    }
+
+    data_out.build_patches();
+
+    data_out.write_vtu_with_pvtu_record(
+        output_directory, output_filename + "_fiber_field", 0, MPI_COMM_WORLD, 0);
+}
 
 template<unsigned int DIM>
 void
@@ -562,7 +617,6 @@ NDSolver<DIM>::output(const unsigned int &time_step) const
 
   //pcout << "..............................................." << std::endl;
   pcout << std::endl << "<+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+>" << std::endl;
-
    
   std::vector<unsigned int> partition_int(mesh.n_active_cells());
   GridTools::get_subdomain_association(mesh, partition_int);
@@ -581,6 +635,10 @@ void
 NDSolver<DIM>::solve()
 {
   pcout << "===============================================" << std::endl;
+
+  if(save_fiber_field_to_file)
+    write_fiber_field_to_file();
+
 
   time = 0.0;
 
@@ -618,7 +676,8 @@ NDSolver<DIM>::solve()
 
       pcout << std::endl;
     }
+
+    pcout << "===============================================" << std::endl;
 }
 
-
-#endif
+#endif // ND_SOLVER_HPP
