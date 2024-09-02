@@ -87,9 +87,6 @@ protected:
   // Solve the problem for one time step using Newton's method.
   virtual void solve_newton();
 
-  // Write the fiber field to the output file.
-  virtual void write_fiber_field_to_file() const;
-
   // Output.
   void output(const unsigned int &time_step) const;
 
@@ -177,6 +174,9 @@ protected:
     void printLoadingBar(int current, int total, int barLength = 50);
     void saveVectorToFile(std::vector<int>& vec, const std::string& filename);
     bool loadVectorFromFile(std::vector<int>& vec, const std::string& filename);
+
+    // Write the fiber field to the output file.
+    void write_fiber_field_to_file() const;
 };
 
 template<unsigned int DIM>
