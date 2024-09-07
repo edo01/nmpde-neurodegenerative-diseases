@@ -13,8 +13,7 @@ class AnisotropicEvaluator
         {}
             
 
-        void compute_ce
-        lls_domain();
+        void compute_cells_domain();
 
         // Vector which maps every triangulation cell to a part of the brain denoted by a value:
         // 0 if it is in the white portion or 1 if it is in the gray portion. @TODO: could be boolean but some problems with file storing and loading
