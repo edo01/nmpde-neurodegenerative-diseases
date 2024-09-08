@@ -2,6 +2,7 @@
 #define ND_SOLVER_HPP 
 
 #define ANYSOTROPIC true
+#define SAVE_FIBER_FIELD_TO_FILE true
 
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/quadrature_lib.h>
@@ -53,8 +54,7 @@ public:
                 const double T_,
                 const unsigned int &r_,
                 const std::string &output_directory_ = "./",
-                const std::string &output_filename_ = "output",
-                const bool save_fiber_field_to_file_ = false)
+                const std::string &output_filename_ = "output")
     :
       problem(problem_)
     , deltat(deltat_)
@@ -66,7 +66,6 @@ public:
     , output_directory(output_directory_)
     , output_filename(output_filename_)
     , mesh(MPI_COMM_WORLD)
-    , save_fiber_field_to_file(save_fiber_field_to_file_)
     , anisotropic_evaluator(problem_, mesh_serial, mesh, mpi_rank, mpi_size, pcout)
   {}
 
@@ -159,16 +158,13 @@ protected:
 
   // System solution at previous time step.
   TrilinosWrappers::MPI::Vector solution_old;
-    
-  // Enable saving the fiber field to file
-  const bool save_fiber_field_to_file;
 
   // Anisotropic evaluator
   AnisotropicEvaluator<DIM> anisotropic_evaluator;
 
   private: 
-    // Write the fiber field to the output file.
-    void write_fiber_field_to_file() const;
+  // Write the fiber field to the output file.
+  void write_fiber_field_to_file() const;
 };
 
 
@@ -428,9 +424,10 @@ NDSolver<DIM>::solve()
 {
   pcout << "===============================================" << std::endl;
 
-  if(save_fiber_field_to_file)
+  if constexpr (SAVE_FIBER_FIELD_TO_FILE)
+  {
     write_fiber_field_to_file();
-
+  }
 
   time = 0.0;
 

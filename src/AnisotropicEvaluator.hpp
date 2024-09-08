@@ -35,7 +35,7 @@ class AnisotropicEvaluator
         // Center of the mesh box
         Point<DIM> box_center;
 
-        // MPI rank and size
+        // MPI 
         const unsigned int mpi_rank;
         const unsigned int mpi_size;
         ConditionalOStream &pcout;
