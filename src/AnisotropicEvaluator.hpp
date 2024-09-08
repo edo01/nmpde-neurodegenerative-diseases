@@ -44,17 +44,24 @@ class AnisotropicEvaluator
 
 template<unsigned int DIM>
 void AnisotropicEvaluator<DIM>::printLoadingBar(int current, int total, int barLength) {
+    static int lastPrintedPercentage = -1;
     float progress = (float)current / total;
-    int pos = (int)(barLength * progress);
+    int currentPercentage = int(progress * 100.0);
 
-    std::cout << "[";
-    for (int i = 0; i < barLength; ++i) {
-        if (i < pos) std::cout << "=";
-        else if (i == pos) std::cout << ">";
-        else std::cout << " ";
+    // Only print if the percentage has changed
+    if (currentPercentage != lastPrintedPercentage) {
+        int pos = (int)(barLength * progress);
+
+        pcout << "[";
+        for (int i = 0; i < barLength; ++i) {
+            if (i < pos) pcout << "=";
+            else if (i == pos) pcout << ">";
+            else pcout << " ";
+        }
+        pcout << "] " << currentPercentage << " %" << std::endl;
+
+        lastPrintedPercentage = currentPercentage;
     }
-    std::cout << "] " << int(progress * 100.0) << " %\r";
-    std::cout.flush();
 }
 
 template<unsigned int DIM>
@@ -214,7 +221,6 @@ void AnisotropicEvaluator<DIM>::compute_cells_domain(){
         checked_cells ++;
         }
 
-        if(mpi_rank == 0)
         printLoadingBar(checked_cells, end-start);
 
         i++;
