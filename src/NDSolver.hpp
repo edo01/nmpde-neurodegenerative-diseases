@@ -1,7 +1,7 @@
 #ifndef ND_SOLVER_HPP
 #define ND_SOLVER_HPP 
 
-#define ANYSOTROPIC false
+#define ANYSOTROPIC true
 
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/quadrature_lib.h>
@@ -54,7 +54,7 @@ public:
                 const unsigned int &r_,
                 const std::string &output_directory_ = "./",
                 const std::string &output_filename_ = "output",
-                const bool save_fiber_field_to_file_ = false)
+                const bool save_fiber_field_to_file_ = true)
     :
       problem(problem_)
     , deltat(deltat_)

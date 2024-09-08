@@ -15,8 +15,7 @@ public:
                  const double T_,
                  const unsigned int &r_,
                  const std::string &output_directory_ = "./",
-                 const std::string &output_filename_ = "output",
-                 const bool save_fiber_field_to_file = false)
+                 const std::string &output_filename_ = "output")
      : NDSolver<DIM>(problem_, deltat_, T_, r_, output_directory_, output_filename_, save_fiber_field_to_file)
    {}
 
