@@ -159,10 +159,11 @@ protected:
   // System solution at previous time step.
   TrilinosWrappers::MPI::Vector solution_old;
 
+  private: 
+
   // Anisotropic evaluator
   AnisotropicEvaluator<DIM> anisotropic_evaluator;
 
-  private: 
   // Write the fiber field to the output file.
   void write_fiber_field_to_file() const;
 };
@@ -170,18 +171,16 @@ protected:
 
 template<unsigned int DIM>
 Tensor<2, DIM> NDSolver<DIM>::evaluate_diffusion_coeff(const types::global_cell_index &global_cell_index, const Point<DIM> &p) const{
-  auto gray_diffusion_tensor = problem.get_gray_diffusion_tensor();
-  auto white_diffusion_tensor = problem.get_white_diffusion_tensor();
+  const auto &diffusion_tensor = problem.get_diffusion_tensor();
 
   if constexpr (ANYSOTROPIC)
   {
     return anisotropic_evaluator.cells_domain[global_cell_index] == 0 ? 
-      white_diffusion_tensor.value(p) :
-      gray_diffusion_tensor.value(p);
+        diffusion_tensor.white_matter_value(p) : diffusion_tensor.gray_matter_value();
   }
   else
   {
-    return white_diffusion_tensor.value(p);
+    return diffusion_tensor.white_matter_value(p);
   }
  
 };
@@ -347,7 +346,7 @@ void
 NDSolver<DIM>::write_fiber_field_to_file() const
 {
 
-    auto &fiber_field = problem.get_white_diffusion_tensor().get_fiber_field();
+    auto &fiber_field = problem.get_diffusion_tensor().get_fiber_field();
     std::array<Vector<double>, DIM> fiber_field_values;
 
     for (unsigned int i = 0; i < DIM; ++i)

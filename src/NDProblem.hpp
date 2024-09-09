@@ -60,10 +60,8 @@ class NDProblem
 {
 
    public:
-        //static constexpr unsigned int DIM = 2;
-
         /**
-         * Fiber Field represent the field of fibers in the domain.
+         * Fiber Field represents the field of fibers in the domain.
          * For each point in the domain, the fiber field is a versor.
          * 
          */
@@ -74,9 +72,6 @@ class NDProblem
                 virtual double value(const Point<DIM> &p, const unsigned int component = 0) const override = 0;
 
         };
-
-
-
 
         /**
          * DiffusionTensor represent the diffusion tensor in the domain.
@@ -96,54 +91,40 @@ class NDProblem
                 _d_axn(d_axn)
                 {}
 
+                virtual const Tensor<2, DIM, double> gray_matter_value(/*const Point<DIM> &p*/) const
+                {
+                    return _d_ext*_identity;
+                }
 
-                Tensor<2,DIM> calculate_fiber_tensor(const Point<DIM> &p) const{
-
-                    // calculate the fiber field at the point p
-                    Vector<double> fiberV(DIM);
-                    _fiber_field.vector_value(p, fiberV);
-                    
-                    // calculate the tensor product n⊗n
-                    Tensor<1,DIM> fiberT_1D;
-                    // copy fiberV into a 1D tensor
-                    for (unsigned int i = 0; i < DIM; ++i)
-                        fiberT_1D[i] = fiberV[i];
-                    
-                    return outer_product(fiberT_1D, fiberT_1D);
+                virtual const Tensor<2, DIM, double> white_matter_value(const Point<DIM> &p) const
+                {
+                    return _d_ext*_identity + _d_axn*fiber_value(p);
                 }
 
                 const FiberField& get_fiber_field() const { return _fiber_field; }
                 
-                protected:
+                private:
                     const FiberField &_fiber_field;
                     const SymmetricTensor<2,DIM> _identity;
                     
                     const double _d_ext; // cm^2/year
                     const double _d_axn; // cm^2/year 
-        };
 
-
-        class WhiteDiffusionTensor : public DiffusionTensor
-        {
-            public:
-                using DiffusionTensor::DiffusionTensor;
-                virtual Tensor<2, DIM, double> value(const Point<DIM> &p) const override
-                {
-                    return DiffusionTensor::_d_ext*DiffusionTensor::_identity + DiffusionTensor::_d_axn*DiffusionTensor::calculate_fiber_tensor(p);
-                }
-        
+                    const Tensor<2,DIM> fiber_value(const Point<DIM> &p) const
+                    {
+                        // calculate the fiber field at the point p
+                        Vector<double> fiberV(DIM);
+                        _fiber_field.vector_value(p, fiberV);
+                        
+                        // calculate the tensor product n⊗n
+                        Tensor<1,DIM> fiberT_1D;
+                        // copy fiberV into a 1D tensor
+                        for (unsigned int i = 0; i < DIM; ++i)
+                            fiberT_1D[i] = fiberV[i];
+                        
+                        return outer_product(fiberT_1D, fiberT_1D);
+                    }
         }; 
-
-        class GrayDiffusionTensor : public DiffusionTensor
-        {
-            public:
-                using DiffusionTensor::DiffusionTensor;
-                virtual Tensor<2, DIM, double> value(const Point<DIM> &/*p*/) const override
-                {
-                    return DiffusionTensor::_d_ext*DiffusionTensor::_identity; 
-                }
-        
-        };
         
         /**
          * Defines the initial condition for the concentration field.
@@ -178,27 +159,26 @@ class NDProblem
         double get_d_axn() const { return _d_axn; }
         double get_white_gray_ratio() const { return _white_gray_ratio; }
         const InitialConcentration& get_initial_concentration() const { return _c_initial; }
-        WhiteDiffusionTensor get_white_diffusion_tensor() const { return _white_diffusion_tensor; }
-        GrayDiffusionTensor get_gray_diffusion_tensor() const  { return _gray_diffusion_tensor; }
+        
+        const DiffusionTensor& get_diffusion_tensor() const { return _diffusion_tensor; }
 
         /**
          * Constructor
          */
         NDProblem(
-            const std::string &mesh_file_name_,
-            const double alpha_,
+            const std::string &mesh_file_name,
+            const double alpha,
             const double d_ext,
             const double d_axn,
-            const InitialConcentration &c_initial_,
-            const FiberField &fiber_field_,
+            const InitialConcentration &c_initial,
+            const FiberField &fiber_field,
             const double white_gray_ratio= 0.9): 
-        _mesh_file_name(mesh_file_name_),
-        _alpha(alpha_),
+        _mesh_file_name(mesh_file_name),
+        _alpha(alpha),
         _d_ext(d_ext),
         _d_axn(d_axn),
-        _c_initial(c_initial_), 
-        _white_diffusion_tensor(fiber_field_, d_ext, d_axn),
-        _gray_diffusion_tensor(fiber_field_, d_ext, d_axn),
+        _c_initial(c_initial), 
+        _diffusion_tensor(fiber_field, d_ext, d_axn),
         _white_gray_ratio(white_gray_ratio)
         {}
 
@@ -219,9 +199,8 @@ class NDProblem
         // Initial conditions.
         const InitialConcentration& _c_initial;
 
-        WhiteDiffusionTensor _white_diffusion_tensor;
-
-        GrayDiffusionTensor _gray_diffusion_tensor;
+        // Diffusion tensor
+        const DiffusionTensor _diffusion_tensor;
 
         // White matter portion 0...1 
         double _white_gray_ratio;
