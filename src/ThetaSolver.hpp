@@ -81,9 +81,8 @@ ThetaSolver<DIM>::assemble_system()
       for (unsigned int q = 0; q < n_q; ++q)
         {
 
-          //evaluate the Diffusion term on the current quadrature point
-          const Tensor<2, DIM> diffusion_coefficent_loc =
-            diffusion_tensor.value(fe_values.quadrature_point(q));
+          //evaluate the Diffusion term on the current quadrature point 
+          const Tensor<2, DIM> diffusion_coefficent_loc = this->evaluate_diffusion_coeff(cell->global_active_cell_index(), fe_values.quadrature_point(q));
 
           double theta_comb = (1 - theta) * solution_old_loc[q] + theta * solution_loc[q];
 
