@@ -67,7 +67,7 @@ void AnisotropicEvaluator<DIM>::printLoadingBar(int current, int total, int barL
 template<unsigned int DIM>
 void AnisotropicEvaluator<DIM>::saveVectorToFile(std::vector<int>& vec, const std::string& filename) {
     std::ofstream outfile(filename, std::ios::out | std::ios::binary);
-    outfile.write(reinterpret_cast<const char*>(vec.data()), vec.size() * sizeof(double));
+    outfile.write(reinterpret_cast<const char*>(vec.data()), vec.size() * sizeof(int));
     outfile.close();
 }
 
