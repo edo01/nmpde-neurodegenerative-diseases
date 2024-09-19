@@ -34,6 +34,8 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #include <deal.II/grid/grid_tools.h>
+#include <deal.II/grid/cell_id.h>
+
 
 #include <fstream>
 #include <iostream>

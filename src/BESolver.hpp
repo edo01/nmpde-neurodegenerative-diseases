@@ -50,6 +50,13 @@ BESolver<DIM>::assemble_system()
     {
       if (!cell->is_locally_owned())
         continue;
+
+      // Get the cell id to evaluate if white or gray matter.
+      // Cell->id() returns a CellId object which identifies the cell also in 
+      // a distributed triangulation.
+      std::string cell_id = (cell->id()).to_string();
+      int custom_cell_id = stoi(cell_id.substr(0, cell_id.find("_")));
+
       fe_values.reinit(cell);
       cell_matrix   = 0.0;
       cell_residual = 0.0;
@@ -61,7 +68,8 @@ BESolver<DIM>::assemble_system()
 
           // Evaluate the Diffusion term on the current quadrature point.
           // Pass also the global quadrature point index to check in which part of the brain it is located. 
-          const Tensor<2, DIM> diffusion_coefficent_loc = this->evaluate_diffusion_coeff(cell->global_active_cell_index(), fe_values.quadrature_point(q));
+          const Tensor<2, DIM> diffusion_coefficent_loc = this->evaluate_diffusion_coeff(custom_cell_id, fe_values.quadrature_point(q));
+
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
