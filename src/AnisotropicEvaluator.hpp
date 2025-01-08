@@ -13,27 +13,41 @@ class AnisotropicEvaluator
         {}
             
 
-        void compute_cells_domain();
+        void load_cells_domain();
 
-        // Vector which maps every triangulation cell to a part of the brain denoted by a value:
-        // 0 if it is in the white portion or 1 if it is in the gray portion. @TODO: could be boolean but some problems with file storing and loading
-        std::vector<int> cells_domain;
+        /**
+         * Vector which maps every triangulation cell to a part of the brain denoted by a value:
+         * 0 if it is in the white portion or 1 if it is in the gray portion.
+         * Calculated previously in Matlab, loaded from a file.
+         */
+        std::vector<int> cells_colormap;
 
     private:
 
-        void printLoadingBar(int current, int total, int barLength = 50);
+        /**
+         * Save the centers of the cells to a file, to later compute the colormap/domain of the cells in MataLab
+         */
+        void save_cells_centers_to_file(const std::string& filename) const;
+
+        /**
+         * Save a integer vector to a file
+         */
         void saveVectorToFile(std::vector<int>& vec, const std::string& filename);
+
+        /**
+         * Load a integer vector from a file
+         */
         bool loadVectorFromFile(std::vector<int>& vec, const std::string& filename);
 
-        void compute_bounding_box();
+        /**
+         * Print the bounding box of the mesh
+         */
+        void print_bounding_box();
 
         // Problem and mesh references
         const NDProblem<DIM> &problem;
         const Triangulation<DIM> &mesh_serial;
         const parallel::fullydistributed::Triangulation<DIM> &mesh;
-
-        // Center of the mesh box
-        Point<DIM> box_center;
 
         // MPI 
         const unsigned int mpi_rank;
@@ -42,27 +56,6 @@ class AnisotropicEvaluator
 
 };
 
-template<unsigned int DIM>
-void AnisotropicEvaluator<DIM>::printLoadingBar(int current, int total, int barLength) {
-    static int lastPrintedPercentage = -1;
-    float progress = (float)current / total;
-    int currentPercentage = int(progress * 100.0);
-
-    // Only print if the percentage has changed
-    if (currentPercentage != lastPrintedPercentage) {
-        int pos = (int)(barLength * progress);
-
-        pcout << "[";
-        for (int i = 0; i < barLength; ++i) {
-            if (i < pos) pcout << "=";
-            else if (i == pos) pcout << ">";
-            else pcout << " ";
-        }
-        pcout << "] " << currentPercentage << " %" << std::endl;
-
-        lastPrintedPercentage = currentPercentage;
-    }
-}
 
 template<unsigned int DIM>
 void AnisotropicEvaluator<DIM>::saveVectorToFile(std::vector<int>& vec, const std::string& filename) {
@@ -101,7 +94,7 @@ bool AnisotropicEvaluator<DIM>::loadVectorFromFile(std::vector<int>& vec, const 
 }
 
 template<unsigned int DIM>
-void AnisotropicEvaluator<DIM>::compute_bounding_box()
+void AnisotropicEvaluator<DIM>::print_bounding_box()
 {
     
     pcout << "-----------------------------------------------" << std::endl;
@@ -111,7 +104,7 @@ void AnisotropicEvaluator<DIM>::compute_bounding_box()
 
     auto box = GridTools::compute_bounding_box(mesh_serial);
 
-    box_center = box.center();
+    Point<DIM> box_center = box.center();
       
     static const char labels[3] = {'x', 'y', 'z'}; 
     for(unsigned i=0; i<DIM; i++){
@@ -126,132 +119,71 @@ void AnisotropicEvaluator<DIM>::compute_bounding_box()
 
 }
 
+
+template<unsigned int DIM>
+void AnisotropicEvaluator<DIM>::save_cells_centers_to_file(const std::string& filename) const
+{
+    std::vector<Point<DIM>> vertices;
+    for (const auto& cell : mesh_serial){
+        // Choose the center 
+        vertices.push_back(cell.center());
+    }
+    std::ofstream outfile(filename);
+    for (const auto& vertex : vertices) {
+        for (unsigned int d = 0; d < DIM; ++d) {
+            outfile << vertex[d] << " ";
+        }
+        outfile << std::endl;
+    }
+    outfile.close();
+    
+}
+
 /**
  * Since the brain is divided into two parts, white and gray matter,
- * we compute the position of every cell with respect
- * to the white and gray partion of the brain, and save the resulting
- * boolean vector. This will be used to evaluate the diffusion tensor 
+ * we need to tag the position of every cell with respect
+ * to the white and gray partion of the brain. A boolean (0-white & 1-gray) 
+ * vector will be used to evaluate the diffusion tensor 
  * on the current cell with repesct to the color type.
  *  
 */
 template<unsigned int DIM>
-void AnisotropicEvaluator<DIM>::compute_cells_domain(){
+void AnisotropicEvaluator<DIM>::load_cells_domain(){
 
-    // Compute the bounding box of the mesh
-    compute_bounding_box();
+    // Print the bounding box of the mesh
+    print_bounding_box();
 
     // Number of active cells in the triangulation
     unsigned n_cells = mesh_serial.n_global_active_cells();
 
     // Vector to store the domain of every cell, 0 for white, 1 for gray
-    cells_domain = std::vector<int>(n_cells, 0);
+    // Not boolean to avoid probleams reading from file
+    cells_colormap = std::vector<int>(n_cells, 0);
 
-    // @TODO: Assign custom name file based on mesh file name 
-    const std::string file_name = problem.get_mesh_file_name() + ".cells_domain"; 
+    std::string file_name_base = problem.get_mesh_file_name(); 
+    // Remove .msh extension from the file name base if present
+    if (file_name_base.size() > 4 && file_name_base.substr(file_name_base.size() - 4) == ".msh") {
+        file_name_base = file_name_base.substr(0, file_name_base.size() - 4);
+    }
+    const std::string file_name_cells_domain = file_name_base + ".cells_colormap"; 
 
 
     // Tries to load existing file
-    if(loadVectorFromFile(cells_domain, file_name)){
+    if(loadVectorFromFile(cells_colormap, file_name_cells_domain)){
         if(mpi_rank == 0)
-        std::cout << "Cells color domain file found at " + file_name + "\n";
+        std::cout << "Cells color domain file found at " + file_name_cells_domain + "\n";
         return;
     }
-
-    if(mpi_rank == 0) 
-        std::cout << "Computing cells color domain, it could take a while.\n";
-
-
-    // Retrieve all vertices on the boundary 
-    std::map<unsigned int, Point<DIM>> boundary_vertices = GridTools::get_all_vertices_at_boundary(mesh_serial);
     
-    // Retrieve all vertices from the triangulation 
-    std::vector<Point<DIM>> triangulation_vertices=mesh_serial.get_vertices();
-    
-    // Create a vector to mark every triangulation vertix if they are on boundary.
-    // It is needed to calculate the closest point with GridTools::find_closest_vertex, 
-    // but limited on the boundary. 
-    std::vector<bool> triangulation_boundary_mask = std::vector<bool>(triangulation_vertices.size(), false);
-    for(const auto [key, value] : boundary_vertices){
-        triangulation_boundary_mask[key] = true;
-    }
+    // File containing the cells domain does not exist, we need to compute it  
+    // The center of each cell is saved on the file. Compute the .cells_colormap file using the matlab script
+    const std::string file_name_cells_centers = file_name_base + ".txt"; 
+    save_cells_centers_to_file(file_name_cells_centers);
 
-    // Scale coefficent describing the ratio between white and gray matter.
-    double white_coeff = problem.get_white_gray_ratio();
-
-    // Current checked checked idx.
-    unsigned checked_cells = 0;
-
-    // MPI distribution parameters
-    int process_cells = n_cells / mpi_size;
-    int remainder = n_cells % mpi_size;
-    int start = process_cells * mpi_rank;
-    int end = start + process_cells;
-    if(mpi_rank == mpi_size - 1){
-        end += remainder;
-    }
-    //
-
-    // Iteration over the cells is distributed among the processes
-    int i = 0;
-    for (const auto& cell : mesh_serial){
-        // @TODO: Could refactor with the iterator
-        if(i >= end)
-        break;
-        else if(i >= start){
-        types::global_cell_index global_cell_index = cell.global_active_cell_index();
-
-        // Choosing randomly one of the vertices of the cell, 
-        // but we could be more precise calculating its center. 
-        Point<DIM> cell_point = cell.vertex(0);
-
-
-        // VERY COMPUTING INTENSIVE 
-        // Find the closest vertex point, but only on the boundary 
-        types::global_vertex_index closest_boundary_id = GridTools::find_closest_vertex(mesh_serial, cell_point, triangulation_boundary_mask);
-        Point<DIM> closest_boundary_point = triangulation_vertices[closest_boundary_id];
-        // -------------------------
-
-        // If the vertex point is nearest to the center of the mesh box than its closest vertex on the white boundary,
-        // it is in the white portion. 
-        if(cell_point.distance(box_center) < white_coeff*closest_boundary_point.distance(box_center))
-            cells_domain[global_cell_index]=0;
-        else
-            cells_domain[global_cell_index]=1;
-
-        checked_cells ++;
-        }
-
-        printLoadingBar(checked_cells, end-start);
-
-        i++;
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-    
-    // Gather the results from all processes
-    {
-        std::vector<int> counts(mpi_size-1, process_cells);
-        counts.push_back(process_cells + remainder);
-        std::vector<int> displacements(mpi_size);
-        for(size_t i = 0; i < mpi_size; i++){
-        displacements[i] = process_cells * i;
-        }
-        MPI_Gatherv(cells_domain.data() + start, end-start, MPI_INT, cells_domain.data(), counts.data(), displacements.data(), MPI_INT, 0, MPI_COMM_WORLD);
-    }
-
-    // Just a check
-    if(mpi_rank == 0){
-        int count = 0;
-        for(auto& cell : cells_domain){
-        count += cell == 0 ? 0 : 1;
-        }
-        std::cout << "Found " << count << " gray cells\n";
-    }
-
-    // Save the vector to file
-    if(mpi_rank == 0)
-        saveVectorToFile(cells_domain, file_name);
-
-    MPI_Barrier(MPI_COMM_WORLD);
+    std::cout << "[AnisotropicEvaluator] Cell domain file not found at location: " << file_name_cells_domain << std::endl;
+    std::cout << "[AnisotropicEvaluator] Deactivate anysotropic mode or create the file running the Matlab script on the file : " << file_name_cells_centers << std::endl;
+    exit(EXIT_FAILURE);
+ 
 }
 
 

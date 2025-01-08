@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
       break;
     case 2:
       {
-        const Point<2> random_point(0.7, 0.7);
+        const Point<2> random_point(0.5, 0.5);
         ConstantInitialCondition<2> initial_condition(1.0, random_point, 0.1);
         AxonBasedFiberField_2D fiber_field(0.3, square_origin);
         NDProblem<2> problem(mesh, alpha, d_ext, d_axn, initial_condition, fiber_field);

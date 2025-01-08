@@ -157,7 +157,6 @@ class NDProblem
         double get_alpha() const { return _alpha; }
         double get_d_ext() const { return _d_ext; }
         double get_d_axn() const { return _d_axn; }
-        double get_white_gray_ratio() const { return _white_gray_ratio; }
         const InitialConcentration& get_initial_concentration() const { return _c_initial; }
         
         const DiffusionTensor& get_diffusion_tensor() const { return _diffusion_tensor; }
@@ -171,15 +170,13 @@ class NDProblem
             const double d_ext,
             const double d_axn,
             const InitialConcentration &c_initial,
-            const FiberField &fiber_field,
-            const double white_gray_ratio= 0.9): 
+            const FiberField &fiber_field): 
         _mesh_file_name(mesh_file_name),
         _alpha(alpha),
         _d_ext(d_ext),
         _d_axn(d_axn),
         _c_initial(c_initial), 
-        _diffusion_tensor(fiber_field, d_ext, d_axn),
-        _white_gray_ratio(white_gray_ratio)
+        _diffusion_tensor(fiber_field, d_ext, d_axn)
         {}
 
     private:
@@ -202,8 +199,6 @@ class NDProblem
         // Diffusion tensor
         const DiffusionTensor _diffusion_tensor;
 
-        // White matter portion 0...1 
-        double _white_gray_ratio;
 };
 
 #endif

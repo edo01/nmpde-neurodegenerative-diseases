@@ -177,7 +177,7 @@ Tensor<2, DIM> NDSolver<DIM>::evaluate_diffusion_coeff(const types::global_cell_
 
   if constexpr (ANYSOTROPIC)
   {
-    return anisotropic_evaluator.cells_domain[global_cell_index] == 0 ? 
+    return anisotropic_evaluator.cells_colormap[global_cell_index] == 0 ? 
         diffusion_tensor.white_matter_value(p) : diffusion_tensor.gray_matter_value();
   }
   else
@@ -282,7 +282,8 @@ NDSolver<DIM>::setup()
   {
     pcout << "-----------------------------------------------" << std::endl;
     pcout << "  Anysotropic evaluation" << std::endl;
-    anisotropic_evaluator.compute_cells_domain();
+    anisotropic_evaluator.load_cells_domain();
+  
   }
 
 }
