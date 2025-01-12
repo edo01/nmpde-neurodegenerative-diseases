@@ -1,7 +1,7 @@
 #ifndef ND_SOLVER_HPP
 #define ND_SOLVER_HPP 
 
-#define ANYSOTROPIC true
+#define ANYSOTROPIC false
 #define SAVE_FIBER_FIELD_TO_FILE true
 
 #include <deal.II/base/conditional_ostream.h>
@@ -294,13 +294,15 @@ NDSolver<DIM>::solve_linear_system()
 {
   SolverControl solver_control(20000, 1e-12 * residual_vector.l2_norm());
 
-  //SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
-  SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);;
+  SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
+  //SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);;
 
-    TrilinosWrappers::PreconditionSSOR      preconditioner;
-    //TrilinosWrappers::PreconditionAMG preconditioner;
-  preconditioner.initialize(
-    jacobian_matrix, TrilinosWrappers::PreconditionSSOR::AdditionalData(1.0));
+  //TrilinosWrappers::PreconditionSSOR      preconditioner;
+  // preconditioner.initialize(jacobian_matrix,
+  //                           TrilinosWrappers::PreconditionSSOR::AdditionalData(1.0));
+                 
+  TrilinosWrappers::PreconditionAMG preconditioner;
+  preconditioner.initialize(jacobian_matrix);
 
   solver.solve(jacobian_matrix, delta_owned, residual_vector, preconditioner);
   pcout << "  " << solver_control.last_step() << " CG iterations" << std::endl;

@@ -35,5 +35,27 @@ deal_ii_initialize_cached_variables()
 # Add useful compiler flags.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfloat-conversion -Wmissing-braces -Wnon-virtual-dtor")
 
-add_executable(neuro_disease src/NDAnalysis.cpp)
-deal_ii_setup_target(neuro_disease)
+# Include directories
+include_directories(include)
+
+# Create a static library for the common sources
+add_library(common_lib STATIC src/FiberFields.cpp src/NDConfig.cpp src/SeedingRegions.cpp)
+deal_ii_setup_target(common_lib)
+
+# Define the neuro_disease_1D executable
+add_executable(neuro_disease_1D src/NDAnalysis1D.cpp)
+target_link_libraries(neuro_disease_1D common_lib)
+deal_ii_setup_target(neuro_disease_1D)
+
+# Define the neuro_disease_2D executable
+add_executable(neuro_disease_2D src/NDAnalysis2D.cpp)
+target_link_libraries(neuro_disease_2D common_lib)
+deal_ii_setup_target(neuro_disease_2D)
+
+# Define the neuro_disease_3D executable
+add_executable(neuro_disease_3D src/NDAnalysis3D.cpp)
+target_link_libraries(neuro_disease_3D common_lib)
+deal_ii_setup_target(neuro_disease_3D)
+
+
+

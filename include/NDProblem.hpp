@@ -33,6 +33,7 @@
 
 #include <typeinfo>
 #include <iostream>
+#include <fstream>
 
 /*
 Problem definition:
@@ -50,10 +51,6 @@ nota che origin non è un parametro del problema, ma è un parametro della
 funzione iniziale e del fiber field.
 */
 using namespace dealii;
-
-static const Point<3> brain_origin = Point<3>(48.0, 73.0, 60.0);
-static const Point<2> square_origin = Point<2>(0.5, 0.5);
-static const Point<3> cube_origin = Point<3>(0.5, 0.5, 0.5);
 
 template<int DIM>
 class NDProblem
