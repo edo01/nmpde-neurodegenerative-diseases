@@ -2,7 +2,8 @@
 #include "NDConfig.hpp"
 #include "InitialConditions.hpp"
 #include "FiberFields.hpp"
-#include "BESolver.hpp"
+#include "NDThetaSolver.hpp"
+#include "NDAdaptiveSolver.hpp"
 
 static const Point<2> square_origin = Point<2>(0.5, 0.5);
 
@@ -31,7 +32,7 @@ int main(int argc, char *argv[])
   AxonBasedFiberField<2> fiber_field(0.3, square_origin);
 
   NDProblem<2> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, initial_condition, fiber_field);
-  BESolver<2> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
+  NDBackwardEulerSolver<2> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
 
   problem.export_problem(config.output_dir + config.output_filename + ".problem");
   solver.setup();

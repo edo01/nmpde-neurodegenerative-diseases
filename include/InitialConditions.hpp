@@ -1,7 +1,7 @@
 #ifndef INITIAL_CONDITIONS_HPP
 #define INITIAL_CONDITIONS_HPP
 
-#include "NDSolver.hpp"
+#include "NDProblem.hpp"
 
 using namespace dealii;
 

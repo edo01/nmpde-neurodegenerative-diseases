@@ -1,7 +1,7 @@
 #ifndef FIBERFIELDS_HPP
 #define FIBERFIELDS_HPP
 
-#include "NDSolver.hpp"
+#include "NDProblem.hpp"
 
 using namespace dealii;
 

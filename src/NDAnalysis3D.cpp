@@ -2,8 +2,7 @@
 #include "NDProblem.hpp"
 #include "InitialConditions.hpp"
 #include "FiberFields.hpp"
-#include "BESolver.hpp"
-#include "ThetaSolver.hpp"
+#include "NDThetaSolver.hpp"
 #include "SeedingRegions.hpp"
 
 static const Point<3> brain_origin = Point<3>(48.0, 73.0, 60.0);
@@ -51,9 +50,7 @@ int main(int argc, char *argv[])
   // const Point<3> random_point(0.7, 0.7, 0.7);
   // ExponentialInitialCondition<3> initial_condition_cube(random_point, 0.1, 1.0, 0.1); 
   // NDProblem<3> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, initial_condition_cube, fiber_field_cube);
-
-  // BESolver<3> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
-  ThetaSolver<3> solver(problem, config.deltat, config.T, config.degree, 0.5 ,config.output_dir, config.output_filename);
+  NDBackwardEulerSolver<3> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
 
   problem.export_problem(std::string(config.output_dir) + config.output_filename + ".problem");
   solver.setup();
