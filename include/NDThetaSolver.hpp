@@ -2,7 +2,6 @@
 #define NDTHETASOLVER_HPP
 
 #define ANYSOTROPIC false
-#define SAVE_FIBER_FIELD_TO_FILE true
 
 #include <fstream>
 #include <iostream>
@@ -42,15 +41,17 @@ class NDThetaSolver
 public:
   // Constructor. We provide the final time, time step Delta t and theta method
   // parameter as constructor arguments.
-  NDThetaSolver(NDProblem<DIM> &problem_,
+   (NDProblem<DIM> &problem_,
                 double theta_,
                 double deltat_,
                 double T_,
                 unsigned int &r_,
                 const std::string &output_directory_ = "./",
-                const std::string &output_filename_ = "output")
+                const std::string &output_filename_ = "output",
+                bool save_fiber_field_to_file_ = true)
     :
       problem(problem_)
+    , diffusion_tensor(problem_.get_diffusion_tensor())
     , theta(theta_)
     , deltat(deltat_)
     , T(T_)
@@ -61,7 +62,8 @@ public:
     , output_directory(output_directory_)
     , output_filename(output_filename_)
     , mesh(MPI_COMM_WORLD)
-    , anisotropic_evaluator(problem_, mesh_serial, mesh, mpi_rank, mpi_size, pcout)
+    , anisotropic_evaluator(problem_.get_mesh_file_name(), mesh_serial, mesh)
+    , save_fiber_field_to_file(save_fiber_field_to_file_)
   {
     if(theta < 0.0 || theta > 1.0)
       throw std::runtime_error("Theta parameter must be in the interval [0, 1].");
@@ -88,10 +90,9 @@ protected:
   // Output.
   void output(const unsigned int &time_step) const;
 
-  Tensor<2, DIM> evaluate_diffusion_coeff(const types::global_cell_index &global_active_cell_index, const Point<DIM> &p) const;
-
-  // Problem definition.
+  // Problem references
   const NDProblem<DIM> &problem;
+  const typename NDProblem<DIM>::DiffusionTensor &diffusion_tensor;
 
   // Theta method parameter.
   const double theta;
@@ -162,8 +163,12 @@ protected:
 
   private: 
 
-  // Anisotropic evaluator
+  // Anisotropic evaluator and diffusion coefficient evaluator.
   AnisotropicEvaluator<DIM> anisotropic_evaluator;
+
+  Tensor<2, DIM> eval_diff_coeff(const types::global_cell_index &global_active_cell_index, const Point<DIM> &p);
+
+  bool save_fiber_field_to_file;
 
   // Write the fiber field to the output file.
   void write_fiber_field_to_file() const;
@@ -171,21 +176,18 @@ protected:
 
 template<unsigned int DIM>
 Tensor<2, DIM>
-NDThetaSolver<DIM>::evaluate_diffusion_coeff(const types::global_cell_index &global_cell_index, const Point<DIM> &p) const
+NDThetaSolver<DIM>::eval_diff_coeff(const types::global_cell_index &global_active_cell_index, const Point<DIM> &p)
 {
-  const auto &diffusion_tensor = problem.get_diffusion_tensor();
-
   if constexpr (ANYSOTROPIC)
   {
-    return anisotropic_evaluator.cells_colormap[global_cell_index] == 0 ? 
+    return anisotropic_evaluator.cells_colormap[global_active_cell_index] == 0 ? 
         diffusion_tensor.white_matter_value(p) : diffusion_tensor.gray_matter_value();
   }
   else
   {
     return diffusion_tensor.white_matter_value(p);
   }
- 
-};
+}
 
 template<unsigned int DIM>
 void
@@ -215,9 +217,10 @@ NDThetaSolver<DIM>::assemble_system()
   std::vector<Tensor<1, DIM>> solution_gradient_loc(n_q);
   std::vector<Tensor<1, DIM>> solution_old_gradient_loc(n_q);
 
+  std::vector<Tensor<2, DIM>> diffusion_coefficent_loc(n_q);
+
   // get the parameters of the problem once for all
   const double alpha = this->problem.get_alpha();
-  const auto diffusion_tensor = this->problem.get_diffusion_tensor();
 
   for (const auto &cell : this->dof_handler.active_cell_iterators())
     {
@@ -240,13 +243,10 @@ NDThetaSolver<DIM>::assemble_system()
       // a distributed triangulation.
       std::string cell_id = (cell->id()).to_string();
       int custom_cell_id = stoi(cell_id.substr(0, cell_id.find("_")));
+      for(unsigned int q = 0; q < n_q; ++q) diffusion_coefficent_loc[q] = eval_diff_coeff(custom_cell_id, fe_values.quadrature_point(q));
 
       for (unsigned int q = 0; q < n_q; ++q)
         {
-
-          //evaluate the Diffusion term on the current quadrature point 
-          const Tensor<2, DIM> diffusion_coefficent_loc = this->evaluate_diffusion_coeff(custom_cell_id, fe_values.quadrature_point(q));
-
           double theta_comb = (1 - theta) * solution_old_loc[q] + theta * solution_loc[q];
 
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
@@ -261,12 +261,13 @@ NDThetaSolver<DIM>::assemble_system()
 
                   // Non-linear stiffness matrix, first term.
                   // D*grad(phi_i) * grad(phi_j) * dx
-                  cell_matrix(i, j) += theta * (diffusion_coefficent_loc 
-                                   * fe_values.shape_grad(j, q)) *
+                  cell_matrix(i, j) += theta * diffusion_coefficent_loc[q] 
+                                   * fe_values.shape_grad(j, q) *
                     fe_values.shape_grad(i, q) * fe_values.JxW(q);
 
                   // Non-linear stiffness matrix, second term.
                   // alpha * (1-2*c) * phi_i * phi_j * dx
+
                   cell_matrix(i, j) -=
                     theta * alpha * (1-2.0 * theta_comb) * fe_values.shape_value(j, q) *
                     fe_values.shape_value(i, q) * fe_values.JxW(q);
@@ -283,18 +284,18 @@ NDThetaSolver<DIM>::assemble_system()
 
               // Diffusion term.
               //(1-theta) * D*grad(c_old) * grad(phi_i) * dx
-              cell_residual(i) -= (1-theta) * (diffusion_coefficent_loc *
-                  solution_old_gradient_loc[q]) * fe_values.shape_grad(i, q) * fe_values.JxW(q);
+              cell_residual(i) -= (1-theta) * diffusion_coefficent_loc[q] *
+                  solution_old_gradient_loc[q] * fe_values.shape_grad(i, q) * fe_values.JxW(q);
 
                   // Diffusion term.
               //(1-theta) * D*grad(c_old) * grad(phi_i) * dx
-              cell_residual(i) -= theta * (diffusion_coefficent_loc *
-                  solution_gradient_loc[q]) * fe_values.shape_grad(i, q) * fe_values.JxW(q);
+              cell_residual(i) -= theta * diffusion_coefficent_loc[q] *
+                  solution_gradient_loc[q] * fe_values.shape_grad(i, q) * fe_values.JxW(q);
 
               // Reaction term. (Non-linear)
               // alpha * (theta_comb) * (1-theta_comb) * phi_i * dx
-              cell_residual(i) +=
-                alpha * theta_comb * (1-theta_comb) * fe_values.shape_value(i, q) *
+              cell_residual(i) -=
+                alpha * theta_comb * (theta_comb-1) * fe_values.shape_value(i, q) *
                 fe_values.JxW(q);
             }
         }
@@ -419,15 +420,15 @@ NDThetaSolver<DIM>::solve_linear_system()
   //SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
   SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);;
 
-  TrilinosWrappers::PreconditionSSOR      preconditioner;
-  preconditioner.initialize(jacobian_matrix,
-                            TrilinosWrappers::PreconditionSSOR::AdditionalData(1.0));
+  // TrilinosWrappers::PreconditionSSOR      preconditioner;
+  // preconditioner.initialize(jacobian_matrix,
+  //                           TrilinosWrappers::PreconditionSSOR::AdditionalData(1.0));
                  
-  // TrilinosWrappers::PreconditionAMG preconditioner;
-  // preconditioner.initialize(jacobian_matrix);
+  TrilinosWrappers::PreconditionAMG preconditioner;
+  preconditioner.initialize(jacobian_matrix);
 
   solver.solve(jacobian_matrix, delta_owned, residual_vector, preconditioner);
-  pcout << "  " << solver_control.last_step() << " CG iterations" << std::endl;
+  pcout << "  " << solver_control.last_step() << " GMRES iterations" << std::endl;
 }
 
 template<unsigned int DIM>
@@ -435,13 +436,14 @@ void
 NDThetaSolver<DIM>::solve_newton()
 {
   const unsigned int n_max_iters        = 1000;
-  const double       residual_tolerance = 1e-9;
+  const double       residual_tolerance = 1e-12;
 
   unsigned int n_iter        = 0;
   double       residual_norm = residual_tolerance + 1;
 
   while (n_iter < n_max_iters && residual_norm > residual_tolerance)
     {
+
       assemble_system();
       residual_norm = residual_vector.l2_norm();
 
@@ -453,6 +455,7 @@ NDThetaSolver<DIM>::solve_newton()
       // tolerance.
       if (residual_norm > residual_tolerance)
         {
+          //At each iteration of Newton's method, we solve the linear system for the increment of the solution.
           solve_linear_system();
 
           solution_owned += delta_owned;
@@ -472,7 +475,7 @@ void
 NDThetaSolver<DIM>::write_fiber_field_to_file() const
 {
 
-    auto &fiber_field = problem.get_diffusion_tensor().get_fiber_field();
+    auto &fiber_field = diffusion_tensor.get_fiber_field();
     std::array<Vector<double>, DIM> fiber_field_values;
 
     for (unsigned int i = 0; i < DIM; ++i)
@@ -548,7 +551,7 @@ NDThetaSolver<DIM>::solve()
 {
   pcout << "===============================================" << std::endl;
 
-  if constexpr (SAVE_FIBER_FIELD_TO_FILE)
+  if (save_fiber_field_to_file)
   {
     write_fiber_field_to_file();
   }
@@ -575,7 +578,7 @@ NDThetaSolver<DIM>::solve()
       time += deltat;
       ++time_step;
 
-      // Store the old solution, so that it is available for assembly.
+      // Store the old solution (previous time-step), so that it is available for assembly.
       solution_old = solution;
 
       pcout << "n = " << std::setw(3) << time_step << ", t = " << std::setw(5)
@@ -628,3 +631,7 @@ class NDBackwardEulerSolver : public NDThetaSolver<DIM>
 };
 
 #endif // NDTHETASOLVER_HPP
+
+/*
+Question: I am doing a Newton iteration on the theta method fully discretized PDE (non-linear) parabolic PDE. But Newton iteration converges only if the initial guess (which is the initial condition) is "close enough" to the solution at the successive timestep. So it is clear that this scheme cannot work for any arbitrary big time-step, even for theta >= 0.5 (when it would be unconditionaly stable for linear parabolic PDEs). I can think of large enough time-steps for which the solution at next time-step is very different from the solution at the previous time-step, too far from the initial condition that Newton iteration cannot converge. So time-step should be small enough. Apparently, on this eqution, Backward Euler (theta = 1) seems to work good even for large time-steps. 
+*/

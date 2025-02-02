@@ -15,7 +15,7 @@ static NDConfig config_square = {
     .degree = 1,
     .d_ext = 0.00,
     .d_axn = 0.2,
-    .C_0 = 0.4,
+    .C_0 = 0.95,
     .mesh = "../meshes/mesh-square-40.msh",
 };
 
@@ -28,11 +28,14 @@ int main(int argc, char *argv[])
   config.parse(argc, argv);
 
   const Point<2> random_point(0.7, 0.7);
-  ConstantInitialCondition<2> initial_condition(1.0, random_point, 0.1);
-  AxonBasedFiberField<2> fiber_field(0.3, square_origin);
+  ConstantInitialCondition<2> initial_condition(config.C_0, random_point, 0.1);
+  //AxonBasedFiberField<2> fiber_field(0.3, square_origin);
+  //RadialFiberField<2> fiber_field(square_origin);
+  CircumferentialFiberField<2> fiber_field(square_origin);
 
   NDProblem<2> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, initial_condition, fiber_field);
   NDBackwardEulerSolver<2> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
+  //NDCrankNicolsonSolver<2> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
 
   problem.export_problem(config.output_dir + config.output_filename + ".problem");
   solver.setup();

@@ -6,6 +6,7 @@
 #include "SeedingRegions.hpp"
 
 static const Point<3> brain_origin = Point<3>(48.0, 73.0, 60.0);
+static const Point<3> cube_origin = Point<3>(0.5, 0.5, 0.5);
 
 static NDConfig config_cube = {
     .dim = 3,
@@ -36,7 +37,9 @@ int main(int argc, char *argv[])
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
+  //choose the configuration
   NDConfig config = config_brain;
+  //NDConfig config = config_cube;
 
   config.parse(argc, argv);
 
