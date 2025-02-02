@@ -3,6 +3,9 @@
 
 #include "NDProblem.hpp"
 
+// small value to be set as initial condition in the region where the initial condition is 0 to avoid the solution to go below zero
+#define EPSILON 5e-3
+
 using namespace dealii;
 
 /**
@@ -22,7 +25,8 @@ class ConstantInitialCondition: public NDProblem<DIM>::InitialConcentration
             if(ray == 0.0)
               return C_0;
             if(p.distance(origin) > ray)
-                return 0.0;
+                // return 0.0;
+                return EPSILON;
             return C_0;
         }
       
@@ -43,7 +47,8 @@ class ExponentialInitialCondition: public NDProblem<DIM>::InitialConcentration
         {
             double distance_from_origin = p.distance(origin);
             if(distance_from_origin > ray)
-              return 0.0;
+              // return 0.0;
+              return EPSILON;
             return C_0*std::exp(-distance_from_origin*distance_from_origin/(2*sigma*sigma));
         }
       
@@ -65,7 +70,8 @@ class QuadraticInitialCondition: public NDProblem<DIM>::InitialConcentration
         {
             double distance_from_origin_squared = p.distance_square(origin);
             if(distance_from_origin_squared > ray_squared)
-              return 0.0;
+              // return 0.0;
+              return EPSILON;
             return C_0*(1 - distance_from_origin_squared/(ray_squared));
         }
 

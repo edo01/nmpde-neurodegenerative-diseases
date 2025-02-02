@@ -41,14 +41,14 @@ class NDThetaSolver
 public:
   // Constructor. We provide the final time, time step Delta t and theta method
   // parameter as constructor arguments.
-   (NDProblem<DIM> &problem_,
-                double theta_,
-                double deltat_,
-                double T_,
-                unsigned int &r_,
-                const std::string &output_directory_ = "./",
-                const std::string &output_filename_ = "output",
-                bool save_fiber_field_to_file_ = true)
+    NDThetaSolver(NDProblem<DIM> &problem_,
+                  double theta_,
+                  double deltat_,
+                  double T_,
+                  unsigned int &r_,
+                  const std::string &output_directory_ = "./",
+                  const std::string &output_filename_ = "output",
+                  bool save_fiber_field_to_file_ = true)
     :
       problem(problem_)
     , diffusion_tensor(problem_.get_diffusion_tensor())
