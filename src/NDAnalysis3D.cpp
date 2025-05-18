@@ -6,7 +6,7 @@
 #include "ThetaSolver.hpp"
 #include "SeedingRegions.hpp"
 
-static const Point<3> brain_origin = Point<3>(48.0, 73.0, 60.0);
+static const Point<3> brain_origin = Point<3>(80.0, 78.0, 70.0);
 
 static NDConfig config_cube = {
     .dim = 3,
@@ -43,7 +43,8 @@ int main(int argc, char *argv[])
 
   //brain mesh
   SeedingRegion sr = SeedingRegion::create(config.seeding_region_type, config.C_0);
-  AxonBasedFiberField<3> fiber_field(20, brain_origin);
+  AxonBasedFiberField<3> fiber_field(brain_origin, Point<3>(20, 35, 20));
+  //CircumferentialFiberField<3> fiber_field()
   NDProblem<3> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, sr, fiber_field);
 
   // cube mesh 
