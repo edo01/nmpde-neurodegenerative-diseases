@@ -18,34 +18,42 @@ static NDConfig config_cube = {
     .d_axn = 20.0,
     .C_0 = 0.4,
     .mesh = "../meshes/mesh-cube-40.msh",
+    .fiber_field_type = FiberFieldType::AxonBased
 };
 
-static NDConfig config_brain = {
+static NDConfig config_brain_baseline = {
     .dim = 3,
-    .T = 24.0,
-    .alpha = 0.5,
+    .T = 48.0,
+    .alpha = 0.6,
     .deltat = 0.24,
     .degree = 1,
     .d_ext = 1.5,
     .d_axn = 3.0,
     .C_0 = 0.95,
     .mesh = "../meshes/brain-h3.03D.msh",
-    .seeding_region_type = SeedingRegionType::AmyloidBeta,
+    .seeding_region_type = SeedingRegionType::Tau,
+    .fiber_field_type = FiberFieldType::AxonBased
 };
 
 int main(int argc, char *argv[])
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
-  NDConfig config = config_brain;
+  NDConfig config = config_brain_baseline;
 
   config.parse(argc, argv);
 
   //brain mesh
   SeedingRegion sr = SeedingRegion::create(config.seeding_region_type, config.C_0);
-  AxonBasedFiberField<3> fiber_field(brain_origin, Point<3>(25, 35, 20));
-  //CircumferentialFiberField<3> fiber_field()
-  NDProblem<3> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, sr, fiber_field);
+  
+  // Create appropriate fiber field using factory
+  auto fiber_field = FiberFieldFactory<3>::create(
+    config.fiber_field_type,
+    brain_origin,
+    Point<3>(25, 35, 20)  // Default semi-axes for axon-based field
+  );
+
+  NDProblem<3> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, sr, *fiber_field);
 
   // cube mesh 
   // AxonBasedFiberField<3> fiber_field_cube(0.3, cube_origin);
@@ -54,7 +62,7 @@ int main(int argc, char *argv[])
   // NDProblem<3> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, initial_condition_cube, fiber_field_cube);
 
   // BESolver<3> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
-  ThetaSolver<3> solver(problem, config.deltat, config.T, config.degree, 0.5 ,config.output_dir, config.output_filename);
+  ThetaSolver<3> solver(problem, config.deltat, config.T, config.degree, 0.5, config.output_dir, config.output_filename);
 
   problem.export_problem(std::string(config.output_dir) + config.output_filename + ".problem");
   solver.setup();

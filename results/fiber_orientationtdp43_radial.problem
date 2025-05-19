@@ -1,0 +1,5 @@
+Mesh file name: meshes/brain-h3.03D.msh
+Growth factor: 0.6
+Extracellular diffusion coefficient: 1.5
+Axonal diffusion coefficient: 3
+Initial concentration: 13SeedingRegion

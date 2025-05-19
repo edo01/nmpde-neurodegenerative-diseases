@@ -3,7 +3,7 @@
 void NDConfig::parse(int argc, char *argv[])
 {
   int opt;
-    while((opt = getopt(argc, argv, "d:T:a:t:e:x:m:g:h:D:o:s:c:")) != -1)
+    while((opt = getopt(argc, argv, "d:T:a:t:e:x:m:g:h:D:o:s:c:f:")) != -1)
     {
       switch(opt) 
       {
@@ -19,6 +19,7 @@ void NDConfig::parse(int argc, char *argv[])
         case 'o': this->output_filename = optarg; break;
         case 'd': this->output_dir = optarg; break;
         case 's': this->seeding_region_type = SeedingRegionType(std::atoi(optarg)); break;
+        case 'f': this->fiber_field_type = FiberFieldType(std::atoi(optarg)); break;
         case 'h':
             std::cerr << "Usage: " << argv[0] << " [options]\n";
             exit(EXIT_SUCCESS);

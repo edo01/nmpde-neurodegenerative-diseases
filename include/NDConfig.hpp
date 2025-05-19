@@ -7,6 +7,7 @@
 #include <string>
 
 #include "SeedingRegions.hpp"
+#include "FiberFields.hpp"
 
 struct NDConfig
 {
@@ -22,6 +23,7 @@ struct NDConfig
   std::string output_filename = "output";
   std::string output_dir = "./";
   SeedingRegionType seeding_region_type;
+  FiberFieldType fiber_field_type;
 
   void parse(int argc, char *argv[]);
 };

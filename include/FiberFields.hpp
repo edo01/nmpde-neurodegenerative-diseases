@@ -173,5 +173,28 @@ void CircumferentialFiberField<3>::vector_value(const Point<3> &p, Vector<double
 template <>
 double CircumferentialFiberField<3>::value(const Point<3> &p, const unsigned int component) const;
 
+enum class FiberFieldType
+{
+  Radial = 0,
+  Circumferential = 1,
+  AxonBased = 2
+};
+
+template <unsigned int DIM>
+class FiberFieldFactory {
+public:
+  static std::unique_ptr<typename NDProblem<DIM>::FiberField> create(FiberFieldType type, const Point<DIM>& center = Point<DIM>(), const Point<DIM>& semi_axes = Point<DIM>()) {
+    switch (type) {
+      case FiberFieldType::Radial:
+        return std::make_unique<RadialFiberField<DIM>>(center);
+      case FiberFieldType::Circumferential:
+        return std::make_unique<CircumferentialFiberField<DIM>>(center, semi_axes[0], semi_axes[1]);
+      case FiberFieldType::AxonBased:
+        return std::make_unique<AxonBasedFiberField<DIM>>(center, semi_axes);
+      default:
+        throw std::invalid_argument("Unknown fiber field type");
+    }
+  }
+};
 
 #endif // FIBERFIELDS_HPP

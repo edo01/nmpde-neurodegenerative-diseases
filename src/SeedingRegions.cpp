@@ -35,7 +35,7 @@ SeedingRegion SeedingRegion::create(SeedingRegionType type, double C_0)
       return SeedingRegion(C_0, {make_pair(Point<3>(23, 22, 95), Point<3>(82, 80, 118)),
                                  make_pair(Point<3>(23, 100, 95), Point<3>(82, 135, 118))});
     case SeedingRegionType::Tau:
-      return SeedingRegion(C_0, {make_pair(Point<3>(23, 48, 85), Point<3>(82, 75, 117))});
+      return SeedingRegion(C_0, {make_pair(Point<3>(70, 77, 50), Point<3>(90, 85, 60))});
     case SeedingRegionType::TDP43:
       return SeedingRegion(C_0, {make_pair(Point<3>(23, 48, 85), Point<3>(82, 75, 117)),
                                  make_pair(Point<3>(63, 80, 44), Point<3>(81, 90, 57))});
