@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
 
   //brain mesh
   SeedingRegion sr = SeedingRegion::create(config.seeding_region_type, config.C_0);
-  AxonBasedFiberField<3> fiber_field(brain_origin, Point<3>(20, 35, 20));
+  AxonBasedFiberField<3> fiber_field(brain_origin, Point<3>(25, 35, 20));
   //CircumferentialFiberField<3> fiber_field()
   NDProblem<3> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, sr, fiber_field);
 
