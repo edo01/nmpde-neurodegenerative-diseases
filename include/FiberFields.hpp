@@ -1,7 +1,7 @@
 #ifndef FIBERFIELDS_HPP
 #define FIBERFIELDS_HPP
 
-#include "NDSolver.hpp" // Assuming this contains NDProblem and deal.II includes
+#include "NDProblem.hpp" // Assuming this contains NDProblem and deal.II includes
 #include <cmath>        // For std::sqrt
 #include <numeric>      // For std::inner_product if needed, not here.
 #include <array>        // Potentially for semi_axes, but Point<DIM> is fine.
