@@ -30,7 +30,8 @@ int main(int argc, char *argv[])
   config.parse(argc, argv);
 
   const Point<2> random_point(0.7, 0.7);
-  ConstantInitialCondition<2> initial_condition(config.C_0, random_point, 0.1);
+  //ConstantInitialCondition<2> initial_condition(config.C_0, random_point, 0.1);
+  QuadraticInitialCondition<2> initial_condition(config.C_0, random_point, 0.15);
   AxonBasedFiberField<2> fiber_field(square_origin, Point<2>(0.3, 0.2));
   //RadialFiberField<2> fiber_field(square_origin);
   //CircumferentialFiberField<2> fiber_field(square_origin);
