@@ -16,7 +16,8 @@ static NDConfig config_square = {
     .d_ext = 0.00,
     .d_axn = 0.2,
     .C_0 = 0.4,
-    .mesh = "../meshes/mesh-square-40.msh",
+    // .mesh = "../meshes/mesh-square-40.msh",
+    .mesh = "../meshes/mesh-square-200.msh",
 };
 
 int main(int argc, char *argv[])
@@ -32,7 +33,8 @@ int main(int argc, char *argv[])
   AxonBasedFiberField<2> fiber_field(square_origin, Point<2>(0.25, 0.2));
 
   NDProblem<2> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, initial_condition, fiber_field);
-  BESolver<2> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
+  //BESolver<2> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
+  Cra
 
   problem.export_problem(config.output_dir + config.output_filename + ".problem");
   solver.setup();
