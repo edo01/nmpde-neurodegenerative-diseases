@@ -1,7 +1,7 @@
 #include "NDProblem.hpp"
 #include "InitialConditions.hpp"
 #include "FiberFields.hpp"
-#include "BESolver.hpp"
+#include "NDThetaSolver.hpp"
 #include "NDConfig.hpp"
 
 static NDConfig config_line = {
@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
   NDProblem<1> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, initial_condition, fiber_field);
   problem.export_problem(std::string(config.output_dir) + config.output_filename + ".problem");
 
-  BESolver<1> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
+  NDBackwardEulerSolver<1> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
   solver.setup();
   solver.solve();
 

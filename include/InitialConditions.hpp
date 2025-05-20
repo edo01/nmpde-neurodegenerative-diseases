@@ -1,7 +1,10 @@
 #ifndef INITIAL_CONDITIONS_HPP
 #define INITIAL_CONDITIONS_HPP
 
-#include "NDSolver.hpp"
+#include "NDProblem.hpp"
+
+// small value to be set as initial condition in the region where the initial condition is 0 to avoid the solution to go below zero
+#define EPSILON 5e-3
 
 using namespace dealii;
 
@@ -19,20 +22,21 @@ class ConstantInitialCondition: public NDProblem<DIM>::InitialConcentration
     public:
         virtual double value(const Point<DIM> &p, const unsigned int /*component*/ = 0) const override
         {
-            if(_ray == 0.0)
-              return _C_0;
-            if(p.distance(_origin) > _ray)
-                return 0.0;
-            return _C_0;
+            if(ray == 0.0)
+              return C_0;
+            if(p.distance(origin) > ray)
+                // return 0.0;
+                return EPSILON;
+            return C_0;
         }
       
-      ConstantInitialCondition(double C_0=0.4, Point<DIM> origin = Point<DIM>(), double ray=0)
-        : _C_0(C_0), _origin(origin), _ray(ray) {}
+      ConstantInitialCondition(double C_0_, Point<DIM> origin_, double ray_)
+        : C_0(C_0_), origin(origin_), ray(ray_) {}
         
     private:
-      double _C_0;
-      Point <DIM> _origin;
-      double _ray;
+      double C_0;
+      Point <DIM> origin;
+      double ray;
 };
 
 template<unsigned int DIM>
@@ -41,19 +45,20 @@ class ExponentialInitialCondition: public NDProblem<DIM>::InitialConcentration
     public:
         virtual double value(const Point<DIM> &p, const unsigned int /*component*/ = 0) const override
         {
-            double distance_from_origin = p.distance(_origin);
-            if(distance_from_origin > _ray)
-              return 0.0;
-            return _C_0*std::exp(-distance_from_origin*distance_from_origin/(2*sigma*sigma));
+            double distance_from_origin = p.distance(origin);
+            if(distance_from_origin > ray)
+              // return 0.0;
+              return EPSILON;
+            return C_0*std::exp(-distance_from_origin*distance_from_origin/(2*sigma*sigma));
         }
       
-      ExponentialInitialCondition(Point<DIM> origin = Point<DIM>(), double sigma = 0.1, double C_0=0.4, double ray=4)
-        : _C_0(C_0), _origin(origin), _ray(ray), sigma(sigma) {}
+      ExponentialInitialCondition(Point<DIM> origin_ = Point<DIM>(), double sigma_ = 0.1, double C_0_ = 0.4, double ray_ = 4)
+        : C_0(C_0_), origin(origin_), ray(ray_), sigma(sigma_) {}
         
     private:
-      double _C_0;
-      Point<DIM> _origin;
-      double _ray;
+      double C_0;
+      Point<DIM> origin;
+      double ray;
       double sigma;
 };
 
@@ -63,19 +68,20 @@ class QuadraticInitialCondition: public NDProblem<DIM>::InitialConcentration
     public:
         virtual double value(const Point<DIM> &p, const unsigned int /*component*/ = 0) const override
         {
-            double distance_from_origin_squared = p.distance_square(_origin);
-            if(distance_from_origin_squared > _ray_squared)
-              return 0.0;
-            return _C_0*(1 - distance_from_origin_squared/(_ray_squared));
+            double distance_from_origin_squared = p.distance_square(origin);
+            if(distance_from_origin_squared > ray_squared)
+              // return 0.0;
+              return EPSILON;
+            return C_0*(1 - distance_from_origin_squared/(ray_squared));
         }
 
-        QuadraticInitialCondition(Point<DIM> origin = Point<DIM>(), double C_0=0.9, double ray=5)
-        : _C_0(C_0), _origin(origin), _ray_squared(ray*ray) {}
+        QuadraticInitialCondition(double C_0_, Point<DIM> origin_, double ray_)
+        : C_0(C_0_), origin(origin_), ray_squared(ray_ * ray_) {}
 
     private:
-        double _C_0;
-        Point<DIM> _origin;
-        double _ray_squared;
+        double C_0;
+        Point<DIM> origin;
+        double ray_squared;
 };
 
 #endif // INITIAL_CONDITIONS_HPP

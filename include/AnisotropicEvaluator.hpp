@@ -8,11 +8,15 @@ class AnisotropicEvaluator
 {
     public:
 
-        AnisotropicEvaluator(NDProblem<DIM> &problem_, const Triangulation<DIM> &mesh_serial_, const parallel::fullydistributed::Triangulation<DIM> &mesh, const int mpi_rank, const int mpi_size, ConditionalOStream &pcout)
-            : problem(problem_), mesh_serial(mesh_serial_), mesh(mesh), mpi_rank(mpi_rank), mpi_size(mpi_size), pcout(pcout)
-        {}
-            
-
+        AnisotropicEvaluator(const std::string mesh_file_name_, const Triangulation<DIM> &mesh_serial_, const parallel::fullydistributed::Triangulation<DIM> &mesh)
+            : mesh_file_name(mesh_file_name_),
+              mesh_serial(mesh_serial_),
+              mesh(mesh),
+              mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)),
+              mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD)),
+              pcout(std::cout, mpi_rank == 0)
+              {}
+      
         void load_cells_domain();
 
         /**
@@ -44,15 +48,15 @@ class AnisotropicEvaluator
          */
         void print_bounding_box();
 
-        // Problem and mesh references
-        const NDProblem<DIM> &problem;
+        // mesh references
+        const std::string mesh_file_name;
         const Triangulation<DIM> &mesh_serial;
         const parallel::fullydistributed::Triangulation<DIM> &mesh;
 
         // MPI 
         const unsigned int mpi_rank;
         const unsigned int mpi_size;
-        ConditionalOStream &pcout;
+        ConditionalOStream pcout;
 
 };
 
@@ -160,7 +164,7 @@ void AnisotropicEvaluator<DIM>::load_cells_domain(){
     // Not boolean to avoid probleams reading from file
     cells_colormap = std::vector<int>(n_cells, 0);
 
-    std::string file_name_base = problem.get_mesh_file_name(); 
+    std::string file_name_base = mesh_file_name;
     // Remove .msh extension from the file name base if present
     if (file_name_base.size() > 4 && file_name_base.substr(file_name_base.size() - 4) == ".msh") {
         file_name_base = file_name_base.substr(0, file_name_base.size() - 4);
