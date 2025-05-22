@@ -7,7 +7,7 @@
 
 static const Point<2> square_origin = Point<2>(0.5, 0.5);
 
-static const Point<2> sagittal_origin = Point<2>(75.0, 75.0);
+static const Point<2> sagittal_origin = Point<2>(67.0, 75.0);
 
 static NDConfig config_square = {
     .dim = 2,
@@ -33,7 +33,7 @@ static NDConfig config_sagittal = {
     .d_axn = 3.0,
     .C_0 = 0.2,
     .mesh = "../meshes/slice_generated.msh",
-    .gray_matter_distance_threshold = 5.0,
+    .gray_matter_distance_threshold = 4.0,
 };
 
 int main(int argc, char *argv[])
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
   //ExponentialInitialCondition<2> initial_condition(Point<2>(79.0, 66.0), 5.0, config.C_0, 15.0);
   //ConstantInitialCondition<2> initial_condition(config.C_0, Point<2>(79.0, 66.0), 5.0);
 
-  const Point<2> seeding_center(79.0, 66.0);
+  const Point<2> seeding_center(87.0, 58.0);
 //   const Point<2> seeding_center(86, 60);
   SmoothBumpInitialCondition<2> initial_condition(seeding_center, config.C_0, 5.0);
 

@@ -196,8 +196,9 @@ NDThetaSolver<DIM>::assemble_system()
 
   std::vector<Tensor<2, DIM>> diffusion_coefficent_loc(n_q);
 
-  // get the white matter baseline alpha
-  double alpha = this->problem.get_alpha();
+  // get the alpha value from the problem
+  const double alpha_white_matter = this->problem.get_alpha();
+  const double alpha_gray_matter = this->problem.get_alpha() / 2.0;
 
   for (const auto &cell : this->dof_handler.active_cell_iterators())
     {
@@ -207,14 +208,16 @@ NDThetaSolver<DIM>::assemble_system()
       fe_values.reinit(cell);
 
       //query material id of the current cell and set variable parameters
+      double alpha;
       if(cell->material_id() != 1) // we are on a white matter cell
       {
         for(unsigned int q = 0; q < n_q; ++q) diffusion_coefficent_loc[q] = diffusion_tensor.white_matter_value(fe_values.quadrature_point(q));
+        alpha = alpha_white_matter;
       }
       else // we are on a gray cell
       {
         for(unsigned int q = 0; q < n_q; ++q) diffusion_coefficent_loc[q] = diffusion_tensor.gray_matter_value();
-        alpha /= 2.0; // growth rate is halved in gray matter
+        alpha = alpha_gray_matter;
       }
 
       cell_matrix   = 0.0;
