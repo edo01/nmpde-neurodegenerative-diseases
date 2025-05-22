@@ -7,6 +7,8 @@
 
 static const Point<2> square_origin = Point<2>(0.5, 0.5);
 
+static const Point<2> sagittal_origin = Point<2>(75.0, 75.0);
+
 static NDConfig config_square = {
     .dim = 2,
     .T = 7.0,
@@ -17,26 +19,49 @@ static NDConfig config_square = {
     .d_ext = 0.00,
     .d_axn = 0.2,
     .C_0 = 0.9,
-    // .mesh = "../meshes/mesh-square-40.msh",
-    .mesh = "../meshes/mesh-square-200.msh",
+    .mesh = "../meshes/mesh-square-300.msh",
+    //.mesh = "../meshes/slice_generated.msh",
+};
+
+static NDConfig config_sagittal = {
+    .dim = 2,
+    .T = 48.0,
+    .alpha = 0.6,
+    .deltat = 0.24,
+    .degree = 1,
+    .d_ext = 1.5,
+    .d_axn = 3.0,
+    .C_0 = 0.2,
+    .mesh = "../meshes/slice_generated.msh",
+    .gray_matter_distance_threshold = 5.0,
 };
 
 int main(int argc, char *argv[])
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
-  NDConfig config = config_square;
+   NDConfig config = config_sagittal;
+    // NDConfig config = config_square;
 
   config.parse(argc, argv);
 
   const Point<2> random_point(0.7, 0.7);
   //ConstantInitialCondition<2> initial_condition(config.C_0, random_point, 0.1);
-  QuadraticInitialCondition<2> initial_condition(config.C_0, random_point, 0.15);
-  AxonBasedFiberField<2> fiber_field(square_origin, Point<2>(0.3, 0.2));
+//   QuadraticInitialCondition<2> initial_condition(config.C_0, random_point, 0.15);
+//   AxonBasedFiberField<2> fiber_field(square_origin, Point<2>(0.3, 0.2));
   //RadialFiberField<2> fiber_field(square_origin);
   //CircumferentialFiberField<2> fiber_field(square_origin);
 
-  NDProblem<2> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, initial_condition, fiber_field);
+  AxonBasedFiberField<2> fiber_field(sagittal_origin, Point<2>(25.0, 15.0));
+  //QuadraticInitialCondition<2> initial_condition(config.C_0, Point<2>(79.0, 66.0), 5.0);
+  //ExponentialInitialCondition<2> initial_condition(Point<2>(79.0, 66.0), 5.0, config.C_0, 15.0);
+  //ConstantInitialCondition<2> initial_condition(config.C_0, Point<2>(79.0, 66.0), 5.0);
+
+  const Point<2> seeding_center(79.0, 66.0);
+//   const Point<2> seeding_center(86, 60);
+  SmoothBumpInitialCondition<2> initial_condition(seeding_center, config.C_0, 5.0);
+
+  NDProblem<2> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, initial_condition, fiber_field, config.gray_matter_distance_threshold);
   NDBackwardEulerSolver<2> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
   //NDCrankNicolsonSolver<2> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
 

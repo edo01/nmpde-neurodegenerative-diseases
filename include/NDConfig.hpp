@@ -24,6 +24,7 @@ struct NDConfig
   std::string output_dir = "./";
   SeedingRegionType seeding_region_type;
   FiberFieldType fiber_field_type;
+  double gray_matter_distance_threshold = 0.0; // all white matter by default
 
   void parse(int argc, char *argv[]);
 };

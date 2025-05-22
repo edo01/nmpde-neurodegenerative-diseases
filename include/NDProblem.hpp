@@ -154,6 +154,8 @@ class NDProblem
         double get_alpha() const { return _alpha; }
         double get_d_ext() const { return _d_ext; }
         double get_d_axn() const { return _d_axn; }
+        double get_gray_matter_distance_threshold() const { return _gray_matter_distance_threshold; }
+
         const InitialConcentration& get_initial_concentration() const { return _c_initial; }
         
         const DiffusionTensor& get_diffusion_tensor() const { return _diffusion_tensor; }
@@ -167,13 +169,15 @@ class NDProblem
             const double d_ext,
             const double d_axn,
             const InitialConcentration &c_initial,
-            const FiberField &fiber_field): 
+            const FiberField &fiber_field, 
+            const double gray_matter_distance_threshold = 0.0):
         _mesh_file_name(mesh_file_name),
         _alpha(alpha),
         _d_ext(d_ext),
         _d_axn(d_axn),
         _c_initial(c_initial), 
-        _diffusion_tensor(fiber_field, d_ext, d_axn)
+        _diffusion_tensor(fiber_field, d_ext, d_axn),
+        _gray_matter_distance_threshold(gray_matter_distance_threshold)
         {}
 
     private:
@@ -195,6 +199,9 @@ class NDProblem
 
         // Diffusion tensor
         const DiffusionTensor _diffusion_tensor;
+
+        // Gray matter distance threshold
+        const double _gray_matter_distance_threshold;
 
 };
 

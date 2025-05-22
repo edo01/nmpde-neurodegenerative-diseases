@@ -1,8 +1,6 @@
 #ifndef NDTHETASOLVER_HPP
 #define NDTHETASOLVER_HPP
 
-#define ANYSOTROPIC false
-
 #include <fstream>
 #include <iostream>
 
@@ -29,9 +27,11 @@
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/grid/grid_tools.h>
 #include <deal.II/grid/cell_id.h>
+#include <deal.II/grid/grid_out.h>
 
 #include "NDProblem.hpp"
-#include "AnisotropicEvaluator.hpp"
+#include "WhiteGrayPartition.hpp"
+
 
 using namespace dealii;
 
@@ -47,8 +47,7 @@ public:
                   double T_,
                   unsigned int &r_,
                   const std::string &output_directory_ = "./",
-                  const std::string &output_filename_ = "output",
-                  bool save_fiber_field_to_file_ = true)
+                  const std::string &output_filename_ = "output")
     :
       problem(problem_)
     , diffusion_tensor(problem_.get_diffusion_tensor())
@@ -62,8 +61,6 @@ public:
     , output_directory(output_directory_)
     , output_filename(output_filename_)
     , mesh(MPI_COMM_WORLD)
-    , anisotropic_evaluator(problem_.get_mesh_file_name(), mesh_serial, mesh)
-    , save_fiber_field_to_file(save_fiber_field_to_file_)
   {
     if(theta < 0.0 || theta > 1.0)
       throw std::runtime_error("Theta parameter must be in the interval [0, 1].");
@@ -163,31 +160,11 @@ protected:
 
   private: 
 
-  // Anisotropic evaluator and diffusion coefficient evaluator.
-  AnisotropicEvaluator<DIM> anisotropic_evaluator;
-
-  Tensor<2, DIM> eval_diff_coeff(const types::global_cell_index &global_active_cell_index, const Point<DIM> &p);
-
-  bool save_fiber_field_to_file;
-
   // Write the fiber field to the output file.
   void write_fiber_field_to_file() const;
-};
 
-template<unsigned int DIM>
-Tensor<2, DIM>
-NDThetaSolver<DIM>::eval_diff_coeff(const types::global_cell_index &global_active_cell_index, const Point<DIM> &p)
-{
-  if constexpr (ANYSOTROPIC)
-  {
-    return anisotropic_evaluator.cells_colormap[global_active_cell_index] == 0 ? 
-        diffusion_tensor.white_matter_value(p) : diffusion_tensor.gray_matter_value();
-  }
-  else
-  {
-    return diffusion_tensor.white_matter_value(p);
-  }
-}
+
+};
 
 template<unsigned int DIM>
 void
@@ -219,8 +196,8 @@ NDThetaSolver<DIM>::assemble_system()
 
   std::vector<Tensor<2, DIM>> diffusion_coefficent_loc(n_q);
 
-  // get the parameters of the problem once for all
-  const double alpha = this->problem.get_alpha();
+  // get the white matter baseline alpha
+  double alpha = this->problem.get_alpha();
 
   for (const auto &cell : this->dof_handler.active_cell_iterators())
     {
@@ -228,6 +205,17 @@ NDThetaSolver<DIM>::assemble_system()
         continue;
 
       fe_values.reinit(cell);
+
+      //query material id of the current cell and set variable parameters
+      if(cell->material_id() != 1) // we are on a white matter cell
+      {
+        for(unsigned int q = 0; q < n_q; ++q) diffusion_coefficent_loc[q] = diffusion_tensor.white_matter_value(fe_values.quadrature_point(q));
+      }
+      else // we are on a gray cell
+      {
+        for(unsigned int q = 0; q < n_q; ++q) diffusion_coefficent_loc[q] = diffusion_tensor.gray_matter_value();
+        alpha /= 2.0; // growth rate is halved in gray matter
+      }
 
       cell_matrix   = 0.0;
       cell_residual = 0.0;
@@ -237,13 +225,6 @@ NDThetaSolver<DIM>::assemble_system()
 
       fe_values.get_function_gradients(this->solution, solution_gradient_loc);
       fe_values.get_function_gradients(this->solution_old, solution_old_gradient_loc);
-
-      // Get the cell id to evaluate if white or gray matter.
-      // Cell->id() returns a CellId object which identifies the cell also in 
-      // a distributed triangulation.
-      std::string cell_id = (cell->id()).to_string();
-      int custom_cell_id = stoi(cell_id.substr(0, cell_id.find("_")));
-      for(unsigned int q = 0; q < n_q; ++q) diffusion_coefficent_loc[q] = eval_diff_coeff(custom_cell_id, fe_values.quadrature_point(q));
 
       for (unsigned int q = 0; q < n_q; ++q)
         {
@@ -317,7 +298,7 @@ NDThetaSolver<DIM>::setup()
   // Create the mesh.
   {
     pcout << "Initializing the mesh" << std::endl;
-
+    pcout << "Mesh file name = " << problem.get_mesh_file_name() << std::endl;
 
     GridIn<DIM> grid_in;
     grid_in.attach_triangulation(mesh_serial);
@@ -333,6 +314,32 @@ NDThetaSolver<DIM>::setup()
     pcout << "-----------------------------------------------" << std::endl;
   }
 
+    //print mesh info and partition into white and gray matter
+  {
+
+    pcout << "Mesh information" << std::endl;
+    pcout << "  Number of global cells = " << mesh.n_global_active_cells() << std::endl;
+    pcout << "  Number of cells " << mesh.n_active_cells() << std::endl;
+    pcout << "  Number of locally owned cells = " << mesh.n_locally_owned_active_cells() << std::endl;
+    pcout << "  Number of vertices " << mesh.n_vertices() << std::endl;
+    
+    const double distance_threshold = problem.get_gray_matter_distance_threshold();
+    if(distance_threshold > 0.0)
+    {
+        pcout << "Partitioning the mesh into white and gray matter" << std::endl;
+        WhiteGrayPartition::set_white_gray_material(mesh_serial, mesh, distance_threshold);     
+
+        pcout << "Writing the partition to file" << std::endl;
+        WhiteGrayPartition::write_partition_to_pvtu(mesh, output_directory, output_filename);
+    }
+    else
+    {
+        pcout << "Partitioning into white and gray matter is disabled. All cells are white matter." << std::endl;
+    }
+
+    pcout << "-----------------------------------------------" << std::endl;
+
+  }
 
   // FINITE ELEMENTS SPACE INITIALIZATION 
   {
@@ -399,15 +406,6 @@ NDThetaSolver<DIM>::setup()
     solution_old = solution;
   }
 
-
-  // ANYSOTROPIC EVALUATION
-  if constexpr (ANYSOTROPIC)
-  {
-    pcout << "-----------------------------------------------" << std::endl;
-    pcout << "  Anysotropic evaluation" << std::endl;
-    anisotropic_evaluator.load_cells_domain();
-  
-  }
 
 }
 
@@ -489,7 +487,6 @@ NDThetaSolver<DIM>::write_fiber_field_to_file() const
 
     for (const auto &cell : mesh.active_cell_iterators())
     {
-
         if(!cell->is_locally_owned())
           continue;
 
@@ -555,10 +552,8 @@ NDThetaSolver<DIM>::solve()
 {
   pcout << "===============================================" << std::endl;
 
-  if (save_fiber_field_to_file)
-  {
-    write_fiber_field_to_file();
-  }
+
+  write_fiber_field_to_file();
 
   time = 0.0;
 
@@ -633,6 +628,7 @@ class NDBackwardEulerSolver : public NDThetaSolver<DIM>
 
     virtual ~NDBackwardEulerSolver() = default;
 };
+
 
 #endif // NDTHETASOLVER_HPP
 

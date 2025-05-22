@@ -4,7 +4,8 @@
 #include "NDProblem.hpp"
 
 // small value to be set as initial condition in the region where the initial condition is 0 to avoid the solution to go below zero
-#define EPSILON 5e-3
+//#define EPSILON 5e-3
+#define EPSILON 0
 
 using namespace dealii;
 
@@ -49,7 +50,7 @@ class ExponentialInitialCondition: public NDProblem<DIM>::InitialConcentration
             if(distance_from_origin > ray)
               // return 0.0;
               return EPSILON;
-            return C_0*std::exp(-distance_from_origin*distance_from_origin/(2*sigma*sigma));
+            return C_0*std::exp(-distance_from_origin*distance_from_origin/(2*sigma*sigma)) + EPSILON;
         }
       
       ExponentialInitialCondition(Point<DIM> origin_ = Point<DIM>(), double sigma_ = 0.1, double C_0_ = 0.4, double ray_ = 4)
@@ -60,6 +61,38 @@ class ExponentialInitialCondition: public NDProblem<DIM>::InitialConcentration
       Point<DIM> origin;
       double ray;
       double sigma;
+};
+
+template <unsigned int DIM>
+class SmoothBumpInitialCondition : public NDProblem<DIM>::InitialConcentration {
+public:
+    virtual double value(const Point<DIM>& p, const unsigned int /*component*/ = 0) const override {
+        double distance_from_origin_sq = p.distance(origin) * p.distance(origin);
+        double r_sq = distance_from_origin_sq / (ray * ray); // Normalized squared radius
+
+        if (r_sq >= 1.0) {
+            return EPSILON; // Or 0.0 if your solver handles it and you want strict zero
+        } else {
+            // Standard bump function form: C_0 * exp(1 - 1/(1 - r^2))
+            // The exp(1) can be absorbed into C_0 if desired for a slightly cleaner look
+            // or use exp(-1 / (1 - r_sq)) and adjust C_0 accordingly
+            double bump_val = C_0 * std::exp(1.0 - 1.0 / (1.0 - r_sq));
+            return bump_val + EPSILON; // Still good practice for numerical stability
+            // Or: return std::max(bump_val, EPSILON);
+        }
+    }
+
+    SmoothBumpInitialCondition(Point<DIM> origin_ = Point<DIM>(),
+                               double C_0_ = 0.4,
+                               double ray_ = 4.0) 
+        : C_0(C_0_), origin(origin_), ray(ray_) {
+        }
+
+private:
+    double C_0;      // Amplitude
+    Point<DIM> origin;
+    double ray;      // Radius of the bump's support
+    // static const double EPSILON = 1e-9; // Or define globally
 };
 
 template<unsigned int DIM>
