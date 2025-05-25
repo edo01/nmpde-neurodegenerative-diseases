@@ -141,6 +141,8 @@ class NDProblem
             file << "Extracellular diffusion coefficient: " << _d_ext << std::endl;
             file << "Axonal diffusion coefficient: " << _d_axn << std::endl;
             file << "Initial concentration: " << typeid(_c_initial).name() << std::endl;
+            file << "Fiber field: " << typeid(_diffusion_tensor.get_fiber_field()).name() << std::endl;
+            file << "Gray matter distance threshold: " << _gray_matter_distance_threshold << std::endl;
             //file << "Diffusion tensor: " << typeid(_diffusion_tensor).name() << std::endl;
             file.close();
         

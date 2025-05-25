@@ -4,10 +4,11 @@
 #include "FiberFields.hpp"
 #include "NDThetaSolver.hpp"
 #include "NDAdaptiveSolver.hpp"
+#include "SeedingRegions.hpp"
 
 static const Point<2> square_origin = Point<2>(0.5, 0.5);
 
-static const Point<2> sagittal_origin = Point<2>(67.0, 75.0);
+static const Point<2> sagittal_origin = Point<2>(70.0, 73.0);
 
 static NDConfig config_square = {
     .dim = 2,
@@ -52,16 +53,31 @@ int main(int argc, char *argv[])
   //RadialFiberField<2> fiber_field(square_origin);
   //CircumferentialFiberField<2> fiber_field(square_origin);
 
-  AxonBasedFiberField<2> fiber_field(sagittal_origin, Point<2>(25.0, 15.0));
+  // AxonBasedFiberField<2> fiber_field(sagittal_origin, Point<2>(35.0, 15.0)); // Old hardcoded
   //QuadraticInitialCondition<2> initial_condition(config.C_0, Point<2>(79.0, 66.0), 5.0);
   //ExponentialInitialCondition<2> initial_condition(Point<2>(79.0, 66.0), 5.0, config.C_0, 15.0);
   //ConstantInitialCondition<2> initial_condition(config.C_0, Point<2>(79.0, 66.0), 5.0);
 
   const Point<2> seeding_center(87.0, 58.0);
 //   const Point<2> seeding_center(86, 60);
-  SmoothBumpInitialCondition<2> initial_condition(seeding_center, config.C_0, 5.0);
+  // SmoothBumpInitialCondition<2> initial_condition(seeding_center, config.C_0, 5.0); // Old hardcoded
 
-  NDProblem<2> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, initial_condition, fiber_field, config.gray_matter_distance_threshold);
+  // Create seeding region based on parsed type
+  // SeedingRegion initial_condition = SeedingRegion::create(config.seeding_region_type, config.C_0); // Old line
+  auto initial_condition = SeedingRegion<2>::create(config.seeding_region_type, config.C_0);
+
+  // Create fiber field based on parsed type
+  // For AxonBased and Circumferential, we might need default semi-axes.
+  // Using sagittal_origin as the center, similar to the previous hardcoded value.
+  // Default semi-axes for AxonBased, similar to 3D. If other types are selected, these might not be used or might need adjustment.
+  Point<2> default_semi_axes(35.0, 15.0); // Default semi-axes, adjust if necessary
+  auto fiber_field = FiberFieldFactory<2>::create(
+    config.fiber_field_type,
+    sagittal_origin, // Using sagittal_origin as the center
+    default_semi_axes  // Default semi-axes
+  );
+
+  NDProblem<2> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, initial_condition, *fiber_field, config.gray_matter_distance_threshold);
   NDBackwardEulerSolver<2> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
   //NDCrankNicolsonSolver<2> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
 

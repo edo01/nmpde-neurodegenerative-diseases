@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
   config.parse(argc, argv);
 
   //brain mesh
-  SeedingRegion sr = SeedingRegion::create(config.seeding_region_type, config.C_0);
+  auto sr = SeedingRegion<3>::create(config.seeding_region_type, config.C_0);
   
   // Create appropriate fiber field using factory
   auto fiber_field = FiberFieldFactory<3>::create(

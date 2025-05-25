@@ -2,6 +2,7 @@
 #define SEEDING_REGIONS_HPP
 
 #include <memory>
+#include <vector>
 #include <cmath>
 
 #include <deal.II/base/point.h>
@@ -22,23 +23,24 @@ enum class SeedingRegionType
   TDP43 = 3
 };
 
-class SeedingRegion : public NDProblem<3>::InitialConcentration
+template <unsigned int DIM>
+class SeedingRegion : public NDProblem<DIM>::InitialConcentration
 {
 public:
-  using CornerPair = std::pair<Point<3>, Point<3>>;
+  using CornerPair = std::pair<Point<DIM>, Point<DIM>>;
 
-  double value(const Point<3> &p, const unsigned int component = 0) const override;
+  double value(const Point<DIM> &p, const unsigned int component = 0) const override;
 
-  static SeedingRegion create(SeedingRegionType type, double C_0);
+  static SeedingRegion<DIM> create(SeedingRegionType type, double C_0);
 
 protected:
   SeedingRegion(double C_0, const std::vector<CornerPair> &corners);
 
 private:
   const double _C_0;
-  Triangulation<3> _region;
+  Triangulation<DIM> _region;
 
-  bool is_inside(const Point<3> &p) const;
+  bool is_inside(const Point<DIM> &p) const;
 };
 
 #endif // SEEDING_REGIONS_HPP
