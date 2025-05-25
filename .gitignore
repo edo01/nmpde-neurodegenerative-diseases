@@ -42,3 +42,4 @@ run-with-dealii.sh
 .env
 
 *vtu
+*.pvd

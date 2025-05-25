@@ -158,6 +158,12 @@ protected:
   // System solution at previous time step.
   TrilinosWrappers::MPI::Vector solution_old;
 
+  // Global concentration.
+  double global_concentration;
+
+  // Total domain volume.
+  double total_domain_volume;
+
   private: 
 
   // Write the fiber field to the output file.
@@ -342,6 +348,19 @@ NDThetaSolver<DIM>::setup()
 
     pcout << "-----------------------------------------------" << std::endl;
 
+  }
+
+  // Calculate and store the total domain volume
+  {
+    double local_volume = 0.0;
+    for (const auto &cell : this->mesh.active_cell_iterators()) 
+    {
+        if (cell->is_locally_owned())
+            local_volume += cell->measure();
+    }
+    this->total_domain_volume = Utilities::MPI::sum(local_volume, MPI_COMM_WORLD);
+    pcout << "Total domain volume = " << this->total_domain_volume << std::endl;
+    pcout << "-----------------------------------------------" << std::endl;
   }
 
   // FINITE ELEMENTS SPACE INITIALIZATION 
@@ -534,6 +553,7 @@ NDThetaSolver<DIM>::output(const unsigned int &time_step) const
 
   pcout << "  Min: " << solution.min() << std::endl;
   pcout << "  Max: " << solution.max() << std::endl;
+  pcout << "  Global concentration: " << this->global_concentration << std::endl;
 
   //pcout << "..............................................." << std::endl;
   pcout << std::endl << "<+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+><+>" << std::endl;
@@ -589,6 +609,29 @@ NDThetaSolver<DIM>::solve()
       // At every time step, we invoke Newton's method to solve the non-linear
       // problem.
       solve_newton();
+
+      // Calculate global concentration
+      {
+        double local_integral = 0.0;
+        FEValues<DIM> fe_values_for_integration(*(this->fe),
+                                                *(this->quadrature),
+                                                update_values | update_quadrature_points | update_JxW_values);
+        std::vector<double> u_values_at_quadrature_points(this->quadrature->size());
+
+        for (const auto &cell : this->dof_handler.active_cell_iterators())
+          {
+            if (cell->is_locally_owned())
+              {
+                fe_values_for_integration.reinit(cell);
+                fe_values_for_integration.get_function_values(this->solution, u_values_at_quadrature_points);
+                for (unsigned int q_index = 0; q_index < this->quadrature->size(); ++q_index)
+                  {
+                    local_integral += u_values_at_quadrature_points[q_index] * fe_values_for_integration.JxW(q_index);
+                  }
+              }
+          }
+        this->global_concentration = Utilities::MPI::sum(local_integral, MPI_COMM_WORLD) / this->total_domain_volume;
+      }
 
       output(time_step);
 
