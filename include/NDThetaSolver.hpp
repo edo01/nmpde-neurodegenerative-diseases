@@ -169,6 +169,8 @@ protected:
   // Write the fiber field to the output file.
   void write_fiber_field_to_file() const;
 
+  // Integrate the current solution on whole domain to compute the global concentration.
+  void compute_current_global_concentration();
 
 };
 
@@ -350,7 +352,7 @@ NDThetaSolver<DIM>::setup()
 
   }
 
-  // Calculate and store the total domain volume
+  // Calculate and store the total domain volume (needed for global concentration calculation)
   {
     double local_volume = 0.0;
     for (const auto &cell : this->mesh.active_cell_iterators()) 
@@ -571,6 +573,31 @@ NDThetaSolver<DIM>::output(const unsigned int &time_step) const
 
 template<unsigned int DIM>
 void
+NDThetaSolver<DIM>::compute_current_global_concentration()
+{
+    double local_integral = 0.0;
+    FEValues<DIM> fe_values_for_integration(*(this->fe),
+                                            *(this->quadrature),
+                                            update_values | update_quadrature_points | update_JxW_values);
+    std::vector<double> u_values_at_quadrature_points(this->quadrature->size());
+
+    for (const auto &cell : this->dof_handler.active_cell_iterators())
+        {
+        if (cell->is_locally_owned())
+            {
+            fe_values_for_integration.reinit(cell);
+            fe_values_for_integration.get_function_values(this->solution, u_values_at_quadrature_points);
+            for (unsigned int q_index = 0; q_index < this->quadrature->size(); ++q_index)
+                {
+                local_integral += u_values_at_quadrature_points[q_index] * fe_values_for_integration.JxW(q_index);
+                }
+            }
+        }
+    this->global_concentration = Utilities::MPI::sum(local_integral, MPI_COMM_WORLD) / this->total_domain_volume;
+}
+
+template<unsigned int DIM>
+void
 NDThetaSolver<DIM>::solve()
 {
   pcout << "===============================================" << std::endl;
@@ -610,28 +637,8 @@ NDThetaSolver<DIM>::solve()
       // problem.
       solve_newton();
 
-      // Calculate global concentration
-      {
-        double local_integral = 0.0;
-        FEValues<DIM> fe_values_for_integration(*(this->fe),
-                                                *(this->quadrature),
-                                                update_values | update_quadrature_points | update_JxW_values);
-        std::vector<double> u_values_at_quadrature_points(this->quadrature->size());
-
-        for (const auto &cell : this->dof_handler.active_cell_iterators())
-          {
-            if (cell->is_locally_owned())
-              {
-                fe_values_for_integration.reinit(cell);
-                fe_values_for_integration.get_function_values(this->solution, u_values_at_quadrature_points);
-                for (unsigned int q_index = 0; q_index < this->quadrature->size(); ++q_index)
-                  {
-                    local_integral += u_values_at_quadrature_points[q_index] * fe_values_for_integration.JxW(q_index);
-                  }
-              }
-          }
-        this->global_concentration = Utilities::MPI::sum(local_integral, MPI_COMM_WORLD) / this->total_domain_volume;
-      }
+      // Calculate global concentration by integrating the current solution over the whole domain
+      compute_current_global_concentration();
 
       output(time_step);
 
