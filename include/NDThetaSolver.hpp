@@ -28,6 +28,7 @@
 #include <deal.II/grid/grid_tools.h>
 #include <deal.II/grid/cell_id.h>
 #include <deal.II/grid/grid_out.h>
+#include <deal.II/lac/solver_minres.h>
 
 #include "NDProblem.hpp"
 #include "WhiteGrayPartition.hpp"
@@ -279,7 +280,7 @@ NDThetaSolver<DIM>::assemble_system()
               cell_residual(i) -= (1-theta) * diffusion_coefficent_loc[q] *
                   solution_old_gradient_loc[q] * fe_values.shape_grad(i, q) * fe_values.JxW(q);
 
-                  // Diffusion term.
+              // Diffusion term.
               //(1-theta) * D*grad(c_old) * grad(phi_i) * dx
               cell_residual(i) -= theta * diffusion_coefficent_loc[q] *
                   solution_gradient_loc[q] * fe_values.shape_grad(i, q) * fe_values.JxW(q);
@@ -325,7 +326,7 @@ NDThetaSolver<DIM>::setup()
     pcout << "-----------------------------------------------" << std::endl;
   }
 
-    //print mesh info and partition into white and gray matter
+  //print mesh info and partition into white and gray matter
   {
 
     pcout << "Mesh information" << std::endl;
@@ -441,21 +442,22 @@ NDThetaSolver<DIM>::solve_linear_system()
  
   //WE DO NOT USE CG AS WE CANNOT GUARANTEE THAT THE JACOBIAN MATRIX IS POSITIVE DEFINITE. IN FACT, WHEN REACTION DOMINATES, THE SYTEM BECOMES NOT POSITIVE DEFINITE.
   //SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
-  SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);;
+  //SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);;
+  SolverMinRes<TrilinosWrappers::MPI::Vector> solver(solver_control);;
 
-//   TrilinosWrappers::PreconditionSSOR      preconditioner;
-//   preconditioner.initialize(jacobian_matrix,
-//                             TrilinosWrappers::PreconditionSSOR::AdditionalData(1.0));
+  TrilinosWrappers::PreconditionSSOR      preconditioner;
+  preconditioner.initialize(jacobian_matrix,
+                            TrilinosWrappers::PreconditionSSOR::AdditionalData(1.0));
 
-  TrilinosWrappers::PreconditionILU      preconditioner;
-    preconditioner.initialize(jacobian_matrix,
-                                 TrilinosWrappers::PreconditionILU::AdditionalData(1.0));
+//  TrilinosWrappers::PreconditionILU      preconditioner;
+//    preconditioner.initialize(jacobian_matrix,
+//                                 TrilinosWrappers::PreconditionILU::AdditionalData(1.0));
                  
 //   TrilinosWrappers::PreconditionAMG preconditioner;
 //   preconditioner.initialize(jacobian_matrix);
 
   solver.solve(jacobian_matrix, delta_owned, residual_vector, preconditioner);
-  pcout << "  " << solver_control.last_step() << " GMRES iterations" << std::endl;
+  pcout << "  " << solver_control.last_step() << " MINRES iterations" << std::endl;
 }
 
 template<unsigned int DIM>
