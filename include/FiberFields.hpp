@@ -6,12 +6,7 @@
 #include <numeric>      // For std::inner_product if needed, not here.
 #include <array>        // Potentially for semi_axes, but Point<DIM> is fine.
 
-// If NDSolver.hpp doesn't include these or you are testing standalone:
-// #include <deal.II/base/point.h>
-// #include <deal.II/lac/vector.h>
-// namespace NDProblem { template <unsigned int DIM> class FiberField {}; } // Mock if needed
-
-using namespace dealii; // Assuming Point, Vector are from deal.II
+using namespace dealii;
 
 template <unsigned int DIM>
 class RadialFiberField : public NDProblem<DIM>::FiberField
