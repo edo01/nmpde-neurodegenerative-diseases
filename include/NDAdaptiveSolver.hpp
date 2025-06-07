@@ -188,7 +188,7 @@ class NDForwardAdaptiveSolver : public NDAdaptiveSolver<DIM>
                             const double min_step_ = 1e-6,
                             const std::string &output_directory_ = "./",
                             const std::string &output_filename_ = "output")
-      : NDAdaptiveSolver<DIM>(problem_, 0.0, deltat_, T_, r_, output_directory_, output_filename_, err_tol_, err_perc, min_step_)
+      : NDAdaptiveSolver<DIM>(problem_, 0.0, deltat_, T_, r_, err_tol_, err_perc, min_step_, output_directory_, output_filename_)
     {}
 
     virtual ~NDForwardAdaptiveSolver() = default;
