@@ -438,9 +438,10 @@ void
 NDThetaSolver<DIM>::solve_linear_system()
 {
   SolverControl solver_control(20000, 1e-12 * residual_vector.l2_norm());
-
-  SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
-  //SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);;
+ 
+  //WE DO NOT USE CG AS WE CANNOT GUARANTEE THAT THE JACOBIAN MATRIX IS POSITIVE DEFINITE. IN FACT, WHEN REACTION DOMINATES, THE SYTEM BECOMES NOT POSITIVE DEFINITE.
+  //SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
+  SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);;
 
 //   TrilinosWrappers::PreconditionSSOR      preconditioner;
 //   preconditioner.initialize(jacobian_matrix,
@@ -454,7 +455,7 @@ NDThetaSolver<DIM>::solve_linear_system()
 //   preconditioner.initialize(jacobian_matrix);
 
   solver.solve(jacobian_matrix, delta_owned, residual_vector, preconditioner);
-  pcout << "  " << solver_control.last_step() << " CG iterations" << std::endl;
+  pcout << "  " << solver_control.last_step() << " GMRES iterations" << std::endl;
 }
 
 template<unsigned int DIM>

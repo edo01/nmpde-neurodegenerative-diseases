@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
   // const Point<3> random_point(0.7, 0.7, 0.7);
   // ExponentialInitialCondition<3> initial_condition_cube(random_point, 0.1, 1.0, 0.1); 
   // NDProblem<3> problem(config.mesh, config.alpha, config.d_ext, config.d_axn, initial_condition_cube, fiber_field_cube);
+
   NDBackwardEulerSolver<3> solver(problem, config.deltat, config.T, config.degree, config.output_dir, config.output_filename);
 
   problem.export_problem(std::string(config.output_dir) + config.output_filename + ".problem");

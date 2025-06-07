@@ -46,30 +46,18 @@ int main(int argc, char *argv[])
 
   config.parse(argc, argv);
 
+  // square old config
   const Point<2> random_point(0.7, 0.7);
   //ConstantInitialCondition<2> initial_condition(config.C_0, random_point, 0.1);
-//   QuadraticInitialCondition<2> initial_condition(config.C_0, random_point, 0.15);
-//   AxonBasedFiberField<2> fiber_field(square_origin, Point<2>(0.3, 0.2));
-  //RadialFiberField<2> fiber_field(square_origin);
   //CircumferentialFiberField<2> fiber_field(square_origin);
 
-  // AxonBasedFiberField<2> fiber_field(sagittal_origin, Point<2>(35.0, 15.0)); // Old hardcoded
-  //QuadraticInitialCondition<2> initial_condition(config.C_0, Point<2>(79.0, 66.0), 5.0);
-  //ExponentialInitialCondition<2> initial_condition(Point<2>(79.0, 66.0), 5.0, config.C_0, 15.0);
-  //ConstantInitialCondition<2> initial_condition(config.C_0, Point<2>(79.0, 66.0), 5.0);
-
+  // sagittal section config
   const Point<2> seeding_center(87.0, 58.0);
-//   const Point<2> seeding_center(86, 60);
   // SmoothBumpInitialCondition<2> initial_condition(seeding_center, config.C_0, 5.0); // Old hardcoded
 
   // Create seeding region based on parsed type
-  // SeedingRegion initial_condition = SeedingRegion::create(config.seeding_region_type, config.C_0); // Old line
   auto initial_condition = SeedingRegion<2>::create(config.seeding_region_type, config.C_0);
 
-  // Create fiber field based on parsed type
-  // For AxonBased and Circumferential, we might need default semi-axes.
-  // Using sagittal_origin as the center, similar to the previous hardcoded value.
-  // Default semi-axes for AxonBased, similar to 3D. If other types are selected, these might not be used or might need adjustment.
   Point<2> default_semi_axes(35.0, 15.0); // Default semi-axes, adjust if necessary
   auto fiber_field = FiberFieldFactory<2>::create(
     config.fiber_field_type,
