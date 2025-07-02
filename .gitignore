@@ -40,3 +40,7 @@ build_debug/*
 *.DS_Store
 run-with-dealii.sh
 .env
+
+*vtu
+*.pvd
+*msh

@@ -1,6 +1,6 @@
-L = 50.0;  // Square side.
+L = 1.0;  // Square side.
 
-N = 10;
+N = 200;
 strN = Sprintf("%.0f", N);
 h = 1.0 / N;  // Mesh size.
 
@@ -22,4 +22,4 @@ Physical Surface(10) = {5};
 // Generate mesh ////////////////////////////////////////////////////////////////
 
 Mesh 2;
-Save StrCat("../mesh/mesh-square-", strN, ".msh");
+Save StrCat("mesh-square-", strN, ".msh");

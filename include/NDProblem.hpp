@@ -1,0 +1,210 @@
+#ifndef NEURODEGENERATIVE_PROBLEM_HPP
+#define NEURODEGENERATIVE_PROBLEM_HPP
+
+#include <deal.II/base/conditional_ostream.h>
+#include <deal.II/base/quadrature_lib.h>
+
+#include <deal.II/base/tensor_function.h>
+
+#include <deal.II/distributed/fully_distributed_tria.h>
+
+#include <deal.II/dofs/dof_handler.h>
+#include <deal.II/dofs/dof_tools.h>
+
+#include <deal.II/fe/fe_simplex_p.h>
+#include <deal.II/fe/fe_system.h>
+#include <deal.II/fe/fe_values.h>
+#include <deal.II/fe/fe_values_extractors.h>
+#include <deal.II/fe/mapping_fe.h>
+
+#include <deal.II/grid/grid_in.h>
+#include <deal.II/grid/grid_generator.h>
+
+#include <deal.II/lac/solver_cg.h>
+#include <deal.II/lac/solver_gmres.h>
+#include <deal.II/lac/trilinos_precondition.h>
+#include <deal.II/lac/trilinos_sparse_matrix.h>
+
+#include <deal.II/numerics/data_out.h>
+#include <deal.II/numerics/matrix_tools.h>
+#include <deal.II/numerics/vector_tools.h>
+
+#include <deal.II/grid/grid_tools.h>
+
+#include <typeinfo>
+#include <iostream>
+#include <fstream>
+
+/*
+Problem definition:
+
+    1) Fiber Field -> il Diffusion Tensor direi che è costruito automaticamente.
+    2) extracellular diffusion
+    3) axonal diffusion
+    4) reaction coefficient
+    5) origin
+    6) delta t
+    7) T
+    8) Mesh
+
+nota che origin non è un parametro del problema, ma è un parametro della
+funzione iniziale e del fiber field.
+*/
+using namespace dealii;
+
+template<int DIM>
+class NDProblem
+{
+
+   public:
+        /**
+         * Fiber Field represents the field of fibers in the domain.
+         * For each point in the domain, the fiber field is a versor.
+         * 
+         */
+        class FiberField : public Function<DIM>
+        {
+            public:
+                virtual void vector_value(const Point<DIM> &p, Vector<double> &values) const override = 0;
+                virtual double value(const Point<DIM> &p, const unsigned int component = 0) const override = 0;
+
+        };
+
+        /**
+         * DiffusionTensor represent the diffusion tensor in the domain.
+         * It represents the diffusion of the concentration in the domain and is
+         * defined as:
+         * D = d_ext*I + d_axn*n⊗n
+         * where d_ext is the extracellular diffusion coefficient, d_axn is the axial
+         * diffusion coefficient, I is the identity tensor and n is the fiber field.
+         */
+        class DiffusionTensor : public TensorFunction<2,DIM>
+        {
+            public:
+                DiffusionTensor(const FiberField &fiber_field, const double d_ext, const double d_axn) 
+                : _fiber_field(fiber_field), 
+                _identity(unit_symmetric_tensor<DIM>()),
+                _d_ext(d_ext),
+                _d_axn(d_axn)
+                {}
+
+                virtual const Tensor<2, DIM, double> gray_matter_value(/*const Point<DIM> &p*/) const
+                {
+                    return _d_ext*_identity;
+                }
+
+                virtual const Tensor<2, DIM, double> white_matter_value(const Point<DIM> &p) const
+                {
+                    return _d_ext*_identity + _d_axn*fiber_value(p);
+                }
+
+                const FiberField& get_fiber_field() const { return _fiber_field; }
+                
+                private:
+                    const FiberField &_fiber_field;
+                    const SymmetricTensor<2,DIM> _identity;
+                    
+                    const double _d_ext; // cm^2/year
+                    const double _d_axn; // cm^2/year 
+
+                    const Tensor<2,DIM> fiber_value(const Point<DIM> &p) const
+                    {
+                        // calculate the fiber field at the point p
+                        Vector<double> fiberV(DIM);
+                        _fiber_field.vector_value(p, fiberV);
+                        
+                        // calculate the tensor product n⊗n
+                        Tensor<1,DIM> fiberT_1D;
+                        // copy fiberV into a 1D tensor
+                        for (unsigned int i = 0; i < DIM; ++i)
+                            fiberT_1D[i] = fiberV[i];
+                        
+                        return outer_product(fiberT_1D, fiberT_1D);
+                    }
+        }; 
+        
+        /**
+         * Defines the initial condition for the concentration field.
+         */
+        class InitialConcentration : public Function<DIM>
+        {
+            public:
+                virtual double value(const Point<DIM> & p, const unsigned int component = 0) const override = 0;
+        };
+        
+        // export the parameters of the problem in a human readable format
+        void export_problem(std::string filename)
+        {
+            std::ofstream file(filename);
+            file << "Mesh file name: " << _mesh_file_name << std::endl;
+            file << "Growth factor: " << _alpha << std::endl;
+            file << "Extracellular diffusion coefficient: " << _d_ext << std::endl;
+            file << "Axonal diffusion coefficient: " << _d_axn << std::endl;
+            file << "Initial concentration: " << typeid(_c_initial).name() << std::endl;
+            file << "Fiber field: " << typeid(_diffusion_tensor.get_fiber_field()).name() << std::endl;
+            file << "Gray matter distance threshold: " << _gray_matter_distance_threshold << std::endl;
+            //file << "Diffusion tensor: " << typeid(_diffusion_tensor).name() << std::endl;
+            file.close();
+        
+        }
+
+        
+        /**
+         * Getters
+         */
+        const std::string &get_mesh_file_name() const { return _mesh_file_name; }
+        double get_alpha() const { return _alpha; }
+        double get_d_ext() const { return _d_ext; }
+        double get_d_axn() const { return _d_axn; }
+        double get_gray_matter_distance_threshold() const { return _gray_matter_distance_threshold; }
+
+        const InitialConcentration& get_initial_concentration() const { return _c_initial; }
+        
+        const DiffusionTensor& get_diffusion_tensor() const { return _diffusion_tensor; }
+
+        /**
+         * Constructor
+         */
+        NDProblem(
+            const std::string &mesh_file_name,
+            const double alpha,
+            const double d_ext,
+            const double d_axn,
+            const InitialConcentration &c_initial,
+            const FiberField &fiber_field, 
+            const double gray_matter_distance_threshold = 0.0):
+        _mesh_file_name(mesh_file_name),
+        _alpha(alpha),
+        _d_ext(d_ext),
+        _d_axn(d_axn),
+        _c_initial(c_initial), 
+        _diffusion_tensor(fiber_field, d_ext, d_axn),
+        _gray_matter_distance_threshold(gray_matter_distance_threshold)
+        {}
+
+    private:
+
+        // Mesh file name.
+        const std::string _mesh_file_name;
+
+        // concentration growth rate
+        double _alpha; // year^-1
+
+        // Extracellular diffusion coefficient
+        double _d_ext; // cm^2/year 
+
+        // Axonal diffusion coefficient
+        double _d_axn; // cm^2/year
+
+        // Initial conditions.
+        const InitialConcentration& _c_initial;
+
+        // Diffusion tensor
+        const DiffusionTensor _diffusion_tensor;
+
+        // Gray matter distance threshold
+        const double _gray_matter_distance_threshold;
+
+};
+
+#endif

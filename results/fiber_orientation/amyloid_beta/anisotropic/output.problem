@@ -1,0 +1,7 @@
+Mesh file name: meshes/slice_generated.msh
+Growth factor: 0.6
+Extracellular diffusion coefficient: 1.5
+Axonal diffusion coefficient: 0
+Initial concentration: 13SeedingRegionILj2EE
+Fiber field: 19AxonBasedFiberFieldILj2EE
+Gray matter distance threshold: 4
